@@ -3,6 +3,7 @@ import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import { roleAtLeast, type PMNode } from '@notes/shared';
 import { ApiError, api, type Page, type PMDoc } from '../lib/api';
 import { editorExtensions } from '../lib/extensions';
+import { currentCell, insertColumnFormula } from '../lib/formulas';
 import { downloadMarkdown } from '../lib/markdown';
 import { Icon } from './Icon';
 import { ConfirmDialog, Dialog } from './Dialog';
@@ -184,6 +185,7 @@ export function PageView({
     </button>
   );
   const c = () => editor.chain().focus();
+  const cell = editor.isActive('table') ? currentCell(editor.state) : null;
 
   return (
     <>
@@ -274,6 +276,14 @@ export function PageView({
               {fb('Delete row', false, () => c().deleteRow().run(), <span>− Row</span>)}
               {fb('Delete column', false, () => c().deleteColumn().run(), <span>− Col</span>)}
               {fb('Delete table', false, () => c().deleteTable().run(), <Icon name="trash" small />)}
+              <span className="sep" />
+              {fb('Sum the cells above', false, () => insertColumnFormula(editor, 'SUM'), <span>Σ Sum</span>)}
+              {fb('Average the cells above', false, () => insertColumnFormula(editor, 'AVERAGE'), <span>x̄ Avg</span>)}
+              {cell && (
+                <span className="cell-ref" title="Type = in a cell to start a formula, for example =SUM(B2:B5). Columns are A, B, C… from the left; rows count from 1 at the top.">
+                  {cell.address}
+                </span>
+              )}
             </>
           )}
         </div>

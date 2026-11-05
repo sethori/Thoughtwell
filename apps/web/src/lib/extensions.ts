@@ -10,6 +10,7 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { generateJSON } from '@tiptap/react';
 import type { PMDoc } from './api';
+import { Formulas } from './formulas';
 
 /**
  * The block types a page can hold. Graphs, sketch diagrams and flowcharts
@@ -25,6 +26,7 @@ export const extensions = [
   TableCell,
   TaskList,
   TaskItem.configure({ nested: true }),
+  Formulas,
 ];
 
 export const editorExtensions = [...extensions, Placeholder.configure({ placeholder: 'Start writing, or use the tools on the right to add a block' })];

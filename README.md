@@ -14,6 +14,7 @@ people, groups, folders and access rules. This is **phase 1** of the
 | Workspace | Each person sees only the units and folders their roles reach, plus recent pages, their groups, and pages shared with them |
 | Access | Roles (viewer, contributor, editor, approver, admin) granted to people or groups on a unit, folder or page, inherited downward and additive |
 | Pages | Text, headings, lists and tasks, tables, images, code, quotes; autosave; publish creates numbered, immutable versions |
+| Table formulas | Type `=` in a cell: `=SUM(B2:B5)`, `=AVERAGE(B2:B5)`, `MIN`, `MAX`, `COUNT`, `ROUND`, cell references and `+ - * /`. The table toolbar's Sum and Avg buttons total the column above the cursor. Cells show the result; click one to edit its formula |
 | Import and export | Markdown import (right-click a folder) and export (download button) |
 | Appearance | Light or dark, comfortable or compact, five accents or the brand color, chosen per person |
 | Branding | Admins set a brand color; readable light and dark accents are derived from it |

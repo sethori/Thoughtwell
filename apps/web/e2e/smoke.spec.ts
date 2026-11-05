@@ -31,6 +31,22 @@ test('sign in, write a page, publish it and switch theme', async ({ page }) => {
   await page.getByRole('button', { name: 'Table' }).click();
   await expect(editor.locator('table')).toBeVisible();
 
+  // Formulas: the Sum button totals the column above, and typed formulas work too.
+  const cells = editor.locator('table td');
+  await cells.nth(0).click();
+  await page.keyboard.type('2');
+  await cells.nth(3).click();
+  await page.keyboard.type('3');
+  await page.getByRole('button', { name: 'Add row' }).click();
+  await cells.nth(6).click();
+  await page.getByRole('button', { name: 'Sum the cells above' }).click();
+  await expect(cells.nth(6)).toContainText('=SUM(A2:A3)');
+  await cells.nth(7).click();
+  await page.keyboard.type('=A4 * 2');
+  await cells.nth(8).click();
+  await expect(cells.nth(6)).toHaveAttribute('data-result', '5');
+  await expect(cells.nth(7)).toHaveAttribute('data-result', '10');
+
   // Appearance follows the person's settings.
   await page.getByRole('button', { name: 'Settings and appearance' }).click();
   await page.getByRole('button', { name: 'Light' }).click();
