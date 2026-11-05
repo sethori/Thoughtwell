@@ -1,0 +1,19 @@
+{
+  "name": "notes-platform",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Shared, multi-user notes platform with hierarchical tenancy and review workflows",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @notes/api --filter @notes/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @notes/web test:e2e",
+    "db:migrate": "pnpm --filter @notes/api db:migrate",
+    "db:seed": "pnpm --filter @notes/api db:seed"
+  }
+}
