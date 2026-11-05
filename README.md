@@ -75,6 +75,50 @@ the database and attachments to `./backups` (keeping the last 14), runs
 migrations, restarts and checks health. If the health check fails, it prints
 the restore command for the backup it just took.
 
+## Run it on Unraid
+
+Unraid has no non-root shell user, and its root filesystem lives in RAM, so keep
+everything under `appdata`.
+
+1. **Enable SSH** (optional, only if you want remote deploys): Settings, Management
+   Access. Add a public key for `root`; on Unraid 6.10 and later it persists from
+   `/boot/config/ssh/root/`. Use a key made just for this and delete it afterward.
+2. **Check Compose.** In the Unraid terminal run `docker compose version`. If it is
+   missing, install the **Compose Manager** plugin from Community Applications.
+3. **Get the code** into a persistent folder:
+   ```bash
+   mkdir -p /mnt/user/appdata/notes-platform && cd /mnt/user/appdata/notes-platform
+   git clone <your repo url> app    # or unzip notes-platform.zip here
+   cd app && cp .env.example .env
+   ```
+4. **Edit `.env`:** set real passwords and a 32+ character `SESSION_SECRET`, then
+   uncomment the data paths so Docker stores data on the cache pool, not in the
+   Docker image file:
+   ```
+   PGDATA_DIR=/mnt/cache/appdata/notes-platform/pgdata
+   ASSETS_DIR=/mnt/user/appdata/notes-platform/assets
+   ```
+   Use `/mnt/cache/...` for the database, not `/mnt/user/...`: Postgres is slower
+   and less reliable through Unraid's user-share layer. If you have no cache pool,
+   use a path on an SSD or accept `/mnt/user`.
+5. **Pick a port.** Unraid's own UI uses 80 and 443, and many containers take 8080.
+   Check the Docker tab, then set `WEB_PORT` to a free one (for example 8087).
+   If your nginx runs on a different machine or in a container on its own network,
+   set `WEB_BIND=0.0.0.0` so it can reach the port; keep the port closed to the
+   internet and reachable only over your LAN or VPN.
+6. **Deploy** and create your admin account:
+   ```bash
+   ./deploy.sh --no-pull
+   docker compose run --rm migrate pnpm exec tsx src/seed.ts   # once
+   ```
+7. **Point your nginx subdomain** at `http://<unraid-ip>:<WEB_PORT>` using the block
+   above, then set `COOKIE_SECURE=true` in `.env` and run `./deploy.sh --no-pull`.
+
+The stack does not appear as managed containers in Unraid's Docker tab; it runs as
+a Compose project (`docker compose ps` shows it) and restarts with Docker.
+Backups land in `./backups` inside the app folder. Copy that folder somewhere off the
+server on a schedule, for example with the CA Appdata Backup plugin or a User Script.
+
 ## Develop locally
 
 Requires Node 22, pnpm 10 and a local Postgres 16.

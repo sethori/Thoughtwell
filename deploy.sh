@@ -9,6 +9,11 @@ cd "$(dirname "$0")"
 [[ -f .env ]] || { echo "Missing .env. Copy .env.example to .env and fill it in."; exit 1; }
 set -a; source .env; set +a
 
+# Bind-mounted data folders (PGDATA_DIR / ASSETS_DIR as absolute paths) must exist.
+# The API runs as uid 1000 in its container, so it must own the attachments folder.
+if [[ "${ASSETS_DIR:-}" == /* ]]; then mkdir -p "$ASSETS_DIR" && chown 1000:1000 "$ASSETS_DIR" 2>/dev/null || true; fi
+if [[ "${PGDATA_DIR:-}" == /* ]]; then mkdir -p "$PGDATA_DIR"; fi
+
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 if [[ "${1:-}" != "--no-pull" ]]; then
@@ -24,7 +29,8 @@ mkdir -p backups
 if docker compose ps --status running db | grep -q db; then
   say "Backing up the database and attachments ($STAMP)"
   docker compose exec -T db pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom > "backups/db-$STAMP.dump"
-  docker run --rm -v "$(basename "$PWD")_assets:/data:ro" -v "$PWD/backups:/out" alpine \
+  ASSETS_SRC="${ASSETS_DIR:-$(basename "$PWD" | tr 'A-Z' 'a-z')_assets}"
+  docker run --rm -v "$ASSETS_SRC:/data:ro" -v "$PWD/backups:/out" alpine \
     tar czf "/out/assets-$STAMP.tgz" -C /data . 2>/dev/null || echo "  (no attachments yet)"
   ls -1t backups/db-*.dump 2>/dev/null | tail -n +15 | xargs -r rm --
   ls -1t backups/assets-*.tgz 2>/dev/null | tail -n +15 | xargs -r rm --
