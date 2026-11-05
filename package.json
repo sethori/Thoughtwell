@@ -14,6 +14,7 @@
     "test": "pnpm -r test",
     "test:e2e": "pnpm --filter @notes/web test:e2e",
     "db:migrate": "pnpm --filter @notes/api db:migrate",
-    "db:seed": "pnpm --filter @notes/api db:seed"
+    "db:seed": "pnpm --filter @notes/api db:seed",
+    "desktop:package": "pnpm --filter @notes/desktop package"
   }
 }

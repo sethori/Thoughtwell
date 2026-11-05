@@ -96,7 +96,7 @@ export async function seed(ownerUrl: string, opts: SeedOptions): Promise<SeedRes
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (!process.versions.electron && process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const env = process.env;
   const url = env.DATABASE_URL;
   if (!url || !env.SEED_ADMIN_PASSWORD) {

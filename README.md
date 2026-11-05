@@ -119,6 +119,38 @@ a Compose project (`docker compose ps` shows it) and restarts with Docker.
 Backups land in `./backups` inside the app folder. Copy that folder somewhere off the
 server on a schedule, for example with the CA Appdata Backup plugin or a User Script.
 
+## Desktop test build (AppImage)
+
+A single-file Linux app that runs everything on one machine: its own PostgreSQL
+server, the API and the web app, with data stored under
+`~/.config/Notes Platform/data`. Nothing leaves the computer. It is for trying
+the app, not for shared use.
+
+**Get it built.** Push this repo to GitHub, open the **Actions** tab, choose
+**Desktop build** and **Run workflow**. When it finishes (about 10 minutes),
+download `NotesPlatform-AppImage` from the run's Artifacts and unzip it. The run
+also starts the finished AppImage, creates a database, signs in and loads the web
+app, and fails if any of that breaks.
+
+**Run it:**
+```bash
+chmod +x NotesPlatform-0.1.0-x86_64.AppImage
+./NotesPlatform-0.1.0-x86_64.AppImage
+```
+On first launch it creates the organization, the placeholder tree and an `admin`
+account, and shows the generated password once (use **Copy password**). File >
+**Open data folder** shows where the data lives; File > **Reset test data**
+deletes it and starts over.
+
+Notes:
+- Built on Ubuntu 24.04, so it needs glibc 2.39 or newer (Ubuntu 24.04+, Debian 13+,
+  Fedora 40+). It needs a normal user account; PostgreSQL refuses to run as root.
+- If the AppImage will not start, install FUSE 2 (`sudo apt install libfuse2t64`
+  on Ubuntu 24.04), or run it with `--appimage-extract-and-run`.
+- The app listens on `127.0.0.1:47831` only, so other machines cannot reach it.
+- To build it yourself instead: `sudo apt install postgresql-16`, then
+  `pnpm install && pnpm desktop:package`; the file lands in `apps/desktop/release`.
+
 ## Develop locally
 
 Requires Node 22, pnpm 10 and a local Postgres 16.

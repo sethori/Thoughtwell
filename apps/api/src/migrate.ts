@@ -9,7 +9,12 @@ const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'migr
  * Applies numbered SQL files in order, once each, then re-applies the app
  * role's privileges. Runs as the database owner.
  */
-export async function migrate(ownerUrl: string, appPassword: string, log = console.log): Promise<string[]> {
+export async function migrate(
+  ownerUrl: string,
+  appPassword: string,
+  log = console.log,
+  migrationsDir = MIGRATIONS_DIR,
+): Promise<string[]> {
   const client = new pg.Client({ connectionString: ownerUrl });
   await client.connect();
   try {
@@ -27,11 +32,11 @@ export async function migrate(ownerUrl: string, appPassword: string, log = conso
     }
 
     const done = new Set((await client.query<{ name: string }>('SELECT name FROM schema_migrations')).rows.map((r) => r.name));
-    const files = (await readdir(MIGRATIONS_DIR)).filter((f) => /^\d+_.+\.sql$/.test(f)).sort();
+    const files = (await readdir(migrationsDir)).filter((f) => /^\d+_.+\.sql$/.test(f)).sort();
     const applied: string[] = [];
     for (const file of files) {
       if (done.has(file)) continue;
-      const sql = await readFile(join(MIGRATIONS_DIR, file), 'utf8');
+      const sql = await readFile(join(migrationsDir, file), 'utf8');
       await client.query('BEGIN');
       try {
         await client.query(sql);
@@ -44,7 +49,7 @@ export async function migrate(ownerUrl: string, appPassword: string, log = conso
       applied.push(file);
       log(`applied ${file}`);
     }
-    await client.query(await readFile(join(MIGRATIONS_DIR, 'grants.sql'), 'utf8'));
+    await client.query(await readFile(join(migrationsDir, 'grants.sql'), 'utf8'));
     log(applied.length ? `${applied.length} migration(s) applied` : 'database is up to date');
     return applied;
   } finally {
@@ -52,7 +57,7 @@ export async function migrate(ownerUrl: string, appPassword: string, log = conso
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (!process.versions.electron && process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const url = process.env.DATABASE_URL;
   const appPassword = process.env.APP_DB_PASSWORD;
   if (!url || !appPassword) {

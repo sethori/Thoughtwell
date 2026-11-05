@@ -1,0 +1,42 @@
+{
+  "name": "@notes/desktop",
+  "productName": "Notes Platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-contained desktop build of Notes Platform for testing: its own database, API and web app on one machine",
+  "author": "Notes Platform",
+  "type": "module",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "bundle": "node scripts/build.mjs",
+    "package": "pnpm --filter @notes/web build && bash scripts/prepare-postgres.sh && node scripts/build.mjs && electron-builder --linux AppImage"
+  },
+  "devDependencies": {
+    "@notes/shared": "workspace:*",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0",
+    "fastify": "^5.2.0",
+    "pg": "^8.13.0",
+    "typescript": "^5.7.0"
+  },
+  "build": {
+    "appId": "dev.notesplatform.desktop",
+    "productName": "Notes Platform",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "package.json"],
+    "extraResources": [
+      { "from": "resources/pg", "to": "pg" },
+      { "from": "../web/dist", "to": "web" },
+      { "from": "../api/migrations", "to": "migrations" }
+    ],
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Office",
+      "artifactName": "NotesPlatform-${version}-${arch}.AppImage"
+    }
+  }
+}
