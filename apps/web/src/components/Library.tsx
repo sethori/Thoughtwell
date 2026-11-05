@@ -7,6 +7,7 @@ import { ConfirmDialog, ContextMenu, Dialog, PromptDialog, type MenuItem } from 
 import { Icon } from './Icon';
 import { OrgTree } from './OrgTree';
 import { AccessDialog } from './AccessDialog';
+import { WorkflowDialog } from './WorkflowDialog';
 import { initials } from './Rail';
 
 type Pending =
@@ -15,6 +16,7 @@ type Pending =
   | { kind: 'renameFolder'; folder: Folder }
   | { kind: 'deleteFolder'; folder: Folder }
   | { kind: 'access'; folder: Folder }
+  | { kind: 'workflow'; folder: Folder }
   | { kind: 'pickUnit' };
 
 function timeAgo(iso: string) {
@@ -121,10 +123,12 @@ export function Library(props: {
       label: f.watching ? 'Stop watching' : 'Watch for changes',
       icon: <Icon name="eye" small />,
       onSelect: async () => {
-        await api.put(`/api/folders/${f.id}/watch`, { watching: !f.watching });
+        await api.put('/api/watches', { scopeType: 'folder', scopeId: f.id, events: f.watching ? [] : ['published', 'review'] });
+        notify(f.watching ? `Stopped watching ${f.name}` : `Watching ${f.name}: you will hear about reviews and publishes`);
         await onChanged();
       },
     });
+    items.push({ label: 'Review settings', icon: <Icon name="review" small />, onSelect: () => setPending({ kind: 'workflow', folder: f }) });
     if (roleAtLeast(f.role, 'admin')) {
       items.push({ label: 'Manage access', icon: <Icon name="lock" small />, onSelect: () => setPending({ kind: 'access', folder: f }) });
     }
@@ -383,6 +387,9 @@ export function Library(props: {
             await onChanged();
           }}
         />
+      )}
+      {pending?.kind === 'workflow' && (
+        <WorkflowDialog scope="folder" id={pending.folder.id} name={pending.folder.name} onClose={() => setPending(null)} />
       )}
       {pending?.kind === 'access' && directory && (
         <AccessDialog

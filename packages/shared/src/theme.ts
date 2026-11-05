@@ -20,16 +20,24 @@ export type AccentPreset = keyof typeof ACCENT_PRESETS;
 /** `brand` uses the organization's derived brand accent. */
 export type AccentChoice = AccentPreset | 'brand';
 
+/** How a person hears about reviews and watched pages, besides the in-app bell. */
+export interface NotifyPreferences {
+  email: boolean;
+  teams: boolean;
+}
+
 export interface Preferences {
   mode: ThemeMode;
   accent: AccentChoice;
   density: Density;
+  notify: NotifyPreferences;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
   mode: 'dark',
   accent: 'blue',
   density: 'comfortable',
+  notify: { email: true, teams: false },
 };
 
 /** Page surfaces the accent must read against. Keep in sync with the web CSS. */
@@ -51,7 +59,12 @@ export function normalizePreferences(input: unknown): Preferences {
     p.accent === 'brand' || (typeof p.accent === 'string' && p.accent in ACCENT_PRESETS)
       ? (p.accent as AccentChoice)
       : DEFAULT_PREFERENCES.accent;
-  return { mode, accent, density };
+  const n = (typeof p.notify === 'object' && p.notify !== null ? p.notify : {}) as Record<string, unknown>;
+  const notify = {
+    email: typeof n.email === 'boolean' ? n.email : DEFAULT_PREFERENCES.notify.email,
+    teams: typeof n.teams === 'boolean' ? n.teams : DEFAULT_PREFERENCES.notify.teams,
+  };
+  return { mode, accent, density, notify };
 }
 
 // ---------- color math ----------

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Editor } from '@tiptap/react';
 import { ApiError, api, type Directory, type Me, type Workspace } from './lib/api';
 import { applyTheme } from './lib/theme';
 import { Login } from './components/Login';
@@ -9,6 +8,8 @@ import { PageView } from './components/PageView';
 import { ToolsPanel } from './components/ToolsPanel';
 import { SettingsDialog } from './components/SettingsDialog';
 import { PeopleDialog } from './components/PeopleDialog';
+import { ReviewInbox } from './components/ReviewInbox';
+import { NotificationsPanel } from './components/NotificationsPanel';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -17,8 +18,12 @@ export function App() {
   const [directory, setDirectory] = useState<Directory | null>(null);
   const [view, setView] = useState<RailView>('notes');
   const [pageId, setPageId] = useState<string | null>(() => new URLSearchParams(location.search).get('page'));
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [dialog, setDialog] = useState<'settings' | 'people' | null>(null);
+  const [openReview, setOpenReview] = useState(false);
+  // Bumped whenever a page is opened from a list, so an already-open page reloads its review state.
+  const [openNonce, setOpenNonce] = useState(0);
+  const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null);
+  const [unread, setUnread] = useState(0);
+  const [dialog, setDialog] = useState<'settings' | 'people' | 'reviews' | 'notifications' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
@@ -54,27 +59,54 @@ export function App() {
     history.replaceState(null, '', url);
   }, [pageId]);
 
+  // The bell's count, refreshed every minute and when the window comes back into focus.
+  const loadUnread = useCallback(() => {
+    void api
+      .get<{ unread: number }>('/api/notifications/unread')
+      .then((r) => setUnread(r.unread))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!me) return;
+    loadUnread();
+    const t = setInterval(loadUnread, 60_000);
+    window.addEventListener('focus', loadUnread);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', loadUnread);
+    };
+  }, [me, loadUnread]);
+
+  const openPage = useCallback((id: string, review = false) => {
+    setOpenReview(review);
+    setOpenNonce((n) => n + 1);
+    setPageId(id);
+  }, []);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
 
+  const notify = useCallback((msg: string) => setToast(msg), []);
+
   if (signedOut) return <Login onSignedIn={loadMe} />;
   if (!me) return null;
 
-  const notify = (msg: string) => setToast(msg);
 
   return (
     <div className="app">
       <Rail
         me={me}
         view={view}
+        unread={unread}
         onView={(v) => {
           if (v === 'settings') setDialog('settings');
           else if (v === 'people') setDialog('people');
+          else if (v === 'review') setDialog('reviews');
+          else if (v === 'notifications') setDialog('notifications');
           else if (v === 'ai') notify('The AI assistant is coming in a later phase.');
-          else if (v === 'review' || v === 'notifications') notify('Review and notifications arrive in phase 3.');
           else setView(v);
         }}
         onSignOut={async () => {
@@ -90,7 +122,7 @@ export function App() {
         workspace={workspace}
         directory={directory}
         selectedPageId={pageId}
-        onOpenPage={setPageId}
+        onOpenPage={(id) => openPage(id)}
         onChanged={refresh}
         notify={notify}
       />
@@ -99,7 +131,10 @@ export function App() {
           <PageView
             key={pageId}
             pageId={pageId}
-            onEditor={setEditor}
+            me={me}
+            rightSlot={rightSlot}
+            openReview={openReview}
+            openNonce={openNonce}
             onSaved={refresh}
             onClosed={() => {
               setPageId(null);
@@ -116,7 +151,10 @@ export function App() {
           </div>
         )}
       </main>
-      <ToolsPanel editor={pageId ? editor : null} pageId={pageId} notify={notify} />
+      {/* The open page puts its own tools panel here. */}
+      <div className="right-slot" ref={setRightSlot}>
+        {!pageId && <ToolsPanel editor={null} pageId={null} notify={notify} />}
+      </div>
 
       {dialog === 'settings' && (
         <SettingsDialog
@@ -129,6 +167,10 @@ export function App() {
       )}
       {dialog === 'people' && directory && (
         <PeopleDialog me={me} directory={directory} onClose={() => setDialog(null)} onChanged={refresh} />
+      )}
+      {dialog === 'reviews' && <ReviewInbox onOpen={(id) => openPage(id, true)} onClose={() => setDialog(null)} />}
+      {dialog === 'notifications' && (
+        <NotificationsPanel onOpen={(id, review) => openPage(id, review)} onRead={loadUnread} onClose={() => setDialog(null)} />
       )}
       {toast && (
         <div className="toast" role="status">

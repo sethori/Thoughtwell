@@ -9,6 +9,8 @@ export interface Config {
   storageDir: string;
   sessionDays: number;
   logLevel: string;
+  /** Address people use to open the app, for links in email and Teams (e.g. https://notes.example.com). */
+  publicUrl: string;
 }
 
 function required(name: string): string {
@@ -27,6 +29,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     storageDir: process.env.STORAGE_DIR ?? './data/assets',
     sessionDays: Number(process.env.SESSION_DAYS ?? 14),
     logLevel: process.env.LOG_LEVEL ?? 'info',
+    publicUrl: (process.env.PUBLIC_URL ?? '').replace(/\/+$/, ''),
     ...overrides,
   };
   if (config.sessionSecret.length < 32) {

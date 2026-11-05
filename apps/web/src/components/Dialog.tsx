@@ -48,6 +48,10 @@ export function PromptDialog({
   label,
   initial = '',
   confirm = 'Save',
+  sub,
+  multiline,
+  allowEmpty,
+  maxLength = 200,
   onSubmit,
   onClose,
 }: {
@@ -55,6 +59,12 @@ export function PromptDialog({
   label: string;
   initial?: string;
   confirm?: string;
+  sub?: string;
+  /** A text area, for notes. */
+  multiline?: boolean;
+  /** Submit is allowed with nothing typed. */
+  allowEmpty?: boolean;
+  maxLength?: number;
   onSubmit: (value: string) => Promise<void>;
   onClose: () => void;
 }) {
@@ -62,11 +72,11 @@ export function PromptDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
-    <Dialog title={title} onClose={onClose}>
+    <Dialog title={title} sub={sub} onClose={onClose}>
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!value.trim()) return;
+          if (!value.trim() && !allowEmpty) return;
           setBusy(true);
           setError(null);
           try {
@@ -80,14 +90,18 @@ export function PromptDialog({
       >
         <label className="field">
           <span>{label}</span>
-          <input className="input" value={value} onChange={(e) => setValue(e.target.value)} maxLength={200} />
+          {multiline ? (
+            <textarea className="input" rows={5} value={value} onChange={(e) => setValue(e.target.value)} maxLength={maxLength} />
+          ) : (
+            <input className="input" value={value} onChange={(e) => setValue(e.target.value)} maxLength={maxLength} />
+          )}
         </label>
         {error && <p className="error">{error}</p>}
         <div className="actions">
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn pri" disabled={busy || !value.trim()}>
+          <button type="submit" className="btn pri" disabled={busy || (!allowEmpty && !value.trim())}>
             {confirm}
           </button>
         </div>

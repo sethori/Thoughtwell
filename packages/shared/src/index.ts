@@ -4,3 +4,6 @@ export * from './theme.js';
 export * from './uploads.js';
 export * from './markdown.js';
 export * from './formula.js';
+export * from './diff.js';
+export * from './chart.js';
+export * from './notifications.js';

@@ -158,7 +158,7 @@ export async function folderRoutes(app: FastifyInstance) {
       await requireRole(db, auth.userId, 'folder', id, 'viewer');
       if (body.watching) {
         await db.query(
-          `INSERT INTO watches (org_id, user_id, scope_type, scope_id) VALUES ($1, $2, 'folder', $3)
+          `INSERT INTO watches (org_id, user_id, scope_type, scope_id, events) VALUES ($1, $2, 'folder', $3, ARRAY['published', 'review'])
            ON CONFLICT DO NOTHING`,
           [auth.orgId, auth.userId, id],
         );

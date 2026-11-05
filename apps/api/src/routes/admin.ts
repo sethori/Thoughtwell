@@ -9,6 +9,8 @@ import { idParams, name, parse, uuid } from '../lib/validate.js';
 import { requireRole } from '../services/access.js';
 import type { AuthContext } from '../types.js';
 import { brandingOf } from './me.js';
+import type { AppDeps } from '../app.js';
+import { normalizeNotificationSettings, publicNotificationSettings } from '../lib/delivery.js';
 
 function requireOrgAdmin(auth: AuthContext) {
   if (!auth.isOrgAdmin) throw forbidden('Only organization admins can do this');
@@ -64,9 +66,30 @@ const settingsBody = z.object({
       allowedTypes: z.array(z.string().max(100)).optional(),
     })
     .optional(),
+  notifications: z
+    .object({
+      email: z
+        .object({
+          enabled: z.boolean(),
+          host: z.string().max(255),
+          port: z.number().int().min(1).max(65535),
+          secure: z.boolean(),
+          username: z.string().max(255),
+          /** Omit to keep the saved password; an empty string clears it. */
+          password: z.string().max(500),
+          from: z.string().max(255),
+        })
+        .partial()
+        .optional(),
+      teams: z
+        .object({ enabled: z.boolean(), webhookUrl: z.union([z.string().url().startsWith('https://'), z.literal('')]) })
+        .partial()
+        .optional(),
+    })
+    .optional(),
 });
 
-export async function adminRoutes(app: FastifyInstance) {
+export async function adminRoutes(app: FastifyInstance, deps: Pick<AppDeps, 'dispatcher'> = {}) {
   // ---------------- people
   app.get('/api/admin/users', async (req) =>
     req.tx(async (db, auth) => {
@@ -213,9 +236,20 @@ export async function adminRoutes(app: FastifyInstance) {
     req.tx(async (db, auth) => {
       requireOrgAdmin(auth);
       const org = await one<{ settings: Record<string, unknown> }>(db, 'SELECT settings FROM orgs WHERE id = $1', [auth.orgId]);
-      return { branding: brandingOf(org?.settings), uploads: normalizeUploadPolicy(org?.settings?.uploads) };
+      return {
+        branding: brandingOf(org?.settings),
+        uploads: normalizeUploadPolicy(org?.settings?.uploads),
+        notifications: publicNotificationSettings(normalizeNotificationSettings(org?.settings?.notifications)),
+      };
     }),
   );
+
+  app.post('/api/admin/notifications/test', async (req) => {
+    const auth = req.auth!;
+    requireOrgAdmin(auth);
+    if (!deps.dispatcher) return { email: 'not available', teams: 'not available' };
+    return deps.dispatcher.sendTest(auth.orgId, auth.userId);
+  });
 
   app.put('/api/admin/settings', async (req) => {
     const body = parse(settingsBody, req.body);
@@ -223,14 +257,29 @@ export async function adminRoutes(app: FastifyInstance) {
       requireOrgAdmin(auth);
       const org = await one<{ settings: Record<string, unknown> }>(db, 'SELECT settings FROM orgs WHERE id = $1', [auth.orgId]);
       const current = org?.settings ?? {};
-      const next = {
+      const next: Record<string, unknown> = {
         ...current,
         ...(body.branding ? { branding: { ...(current.branding as object), ...body.branding } } : {}),
         ...(body.uploads ? { uploads: normalizeUploadPolicy({ ...(current.uploads as object), ...body.uploads }) } : {}),
       };
+      if (body.notifications) {
+        const was = normalizeNotificationSettings(current.notifications);
+        next.notifications = normalizeNotificationSettings({
+          email: { ...was.email, ...body.notifications.email },
+          teams: { ...was.teams, ...body.notifications.teams },
+        });
+      }
       await db.query('UPDATE orgs SET settings = $2 WHERE id = $1', [auth.orgId, next]);
-      await audit(db, auth, 'org.settings', 'org', auth.orgId, body);
-      return { branding: brandingOf(next), uploads: normalizeUploadPolicy(next.uploads) };
+      // Never write the SMTP password into the audit log.
+      const logged = body.notifications?.email?.password !== undefined
+        ? { ...body, notifications: { ...body.notifications, email: { ...body.notifications.email, password: '(changed)' } } }
+        : body;
+      await audit(db, auth, 'org.settings', 'org', auth.orgId, logged);
+      return {
+        branding: brandingOf(next),
+        uploads: normalizeUploadPolicy(next.uploads),
+        notifications: publicNotificationSettings(normalizeNotificationSettings(next.notifications)),
+      };
     });
   });
 

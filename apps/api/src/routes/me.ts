@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { deriveScheme, isHexColor, normalizePreferences, THEME_MODES, DENSITIES, ACCENT_PRESETS } from '@notes/shared';
 import { many, one } from '../db.js';
 import { parse } from '../lib/validate.js';
+import { normalizeNotificationSettings } from '../lib/delivery.js';
 
 const prefsBody = z
   .object({
     mode: z.enum(THEME_MODES),
     density: z.enum(DENSITIES),
     accent: z.union([z.enum(Object.keys(ACCENT_PRESETS) as [string, ...string[]]), z.literal('brand')]),
+    notify: z.object({ email: z.boolean(), teams: z.boolean() }).partial(),
   })
   .partial();
 
@@ -47,7 +49,16 @@ export async function meRoutes(app: FastifyInstance) {
       );
       return {
         user: { ...user, preferences: normalizePreferences(user?.preferences) },
-        org: { id: org?.id, name: org?.name, branding: brandingOf(org?.settings) },
+        org: {
+          id: org?.id,
+          name: org?.name,
+          branding: brandingOf(org?.settings),
+          // Which delivery channels an admin has set up, so people know what they can turn on.
+          channels: (() => {
+            const n = normalizeNotificationSettings(org?.settings?.notifications);
+            return { email: n.email.enabled && Boolean(n.email.host), teams: n.teams.enabled && Boolean(n.teams.webhookUrl) };
+          })(),
+        },
         groups,
       };
     }),
@@ -57,7 +68,8 @@ export async function meRoutes(app: FastifyInstance) {
     const body = parse(prefsBody, req.body);
     return req.tx(async (db, auth) => {
       const row = await one<{ preferences: unknown }>(db, 'SELECT preferences FROM users WHERE id = $1', [auth.userId]);
-      const merged = normalizePreferences({ ...(row?.preferences as object), ...body });
+      const prev = normalizePreferences(row?.preferences);
+      const merged = normalizePreferences({ ...prev, ...body, notify: { ...prev.notify, ...body.notify } });
       await db.query('UPDATE users SET preferences = $2 WHERE id = $1', [auth.userId, merged]);
       return { preferences: merged };
     });

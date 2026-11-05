@@ -15,24 +15,27 @@ function initials(name: string) {
 export function Rail({
   me,
   view,
+  unread = 0,
   onView,
   onSignOut,
 }: {
   me: Me;
   view: RailView;
+  unread?: number;
   onView: (v: RailView) => void;
   onSignOut: () => void;
 }) {
-  const btn = (v: RailView, icon: IconName, label: string, extra = '') => (
+  const btn = (v: RailView, icon: IconName, label: string, extra = '', badge = 0) => (
     <button
       type="button"
       className={`rb ${view === v ? 'on' : ''} ${extra}`}
-      aria-label={label}
+      aria-label={badge ? `${label}, ${badge} unread` : label}
       title={label}
       aria-pressed={view === v}
       onClick={() => onView(v)}
     >
       <Icon name={icon} />
+      {badge > 0 && <span className="badge">{badge > 99 ? '99+' : badge}</span>}
     </button>
   );
   return (
@@ -46,7 +49,7 @@ export function Rail({
       {me.user.is_org_admin && btn('people', 'people', 'People')}
       <div className="spacer" />
       {btn('settings', 'settings', 'Settings and appearance')}
-      {btn('notifications', 'bell', 'Notifications')}
+      {btn('notifications', 'bell', 'Notifications', '', unread)}
       {btn('ai', 'sparkle', 'AI assistant', 'ai')}
       <button type="button" className="rb" aria-label="Sign out" title="Sign out" onClick={onSignOut}>
         <Icon name="logout" />

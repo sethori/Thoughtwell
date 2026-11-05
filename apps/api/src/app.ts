@@ -16,6 +16,13 @@ import { grantRoutes } from './routes/grants.js';
 import { meRoutes } from './routes/me.js';
 import { pageRoutes } from './routes/pages.js';
 import { unitRoutes } from './routes/units.js';
+import { notificationRoutes } from './routes/notifications.js';
+import { reviewRoutes } from './routes/reviews.js';
+import { watchRoutes } from './routes/watches.js';
+import { workflowRoutes } from './routes/workflow.js';
+import { COLLAB_PATH, createCollab, type Collab } from './collab/server.js';
+import { pgCollabStore } from './collab/store.js';
+import { createDispatcher, type Dispatcher } from './lib/delivery.js';
 import type { AuthContext } from './types.js';
 import './types.js';
 
@@ -23,11 +30,18 @@ export interface AppDeps {
   config: Config;
   pool: pg.Pool;
   storage?: Storage;
+  /** Live co-editing. Created by buildApp unless passed in. */
+  collab?: Collab;
+  /** Email and Teams delivery. Created by buildApp unless passed in. */
+  dispatcher?: Dispatcher;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const { config, pool } = deps;
   const storage = deps.storage ?? new LocalStorage(config.storageDir);
+  const collab = deps.collab ?? createCollab(pgCollabStore(pool));
+  const dispatcher = deps.dispatcher ?? createDispatcher(pool, config.publicUrl);
+  const full: AppDeps = { ...deps, storage, collab, dispatcher };
 
   const app = Fastify({
     logger: { level: config.logLevel, redact: ['req.headers.cookie', 'req.headers.authorization'] },
@@ -86,15 +100,30 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
 
-  await authRoutes(app, deps);
+  await authRoutes(app, full);
   await meRoutes(app);
   await directoryRoutes(app);
   await unitRoutes(app);
   await folderRoutes(app);
-  await pageRoutes(app);
+  await pageRoutes(app, full);
+  await reviewRoutes(app, full);
+  await workflowRoutes(app);
+  await watchRoutes(app);
+  await notificationRoutes(app);
   await grantRoutes(app);
-  await adminRoutes(app);
+  await adminRoutes(app, full);
   await assetRoutes(app, { storage });
+
+  // Live editing shares the API's port: WebSocket upgrades on /api/collab.
+  app.server.on('upgrade', (req, socket, head) => {
+    const path = (req.url ?? '').split('?')[0];
+    if (path === COLLAB_PATH || path?.startsWith(`${COLLAB_PATH}/`)) collab.handleUpgrade(req, socket, head);
+    else socket.destroy();
+  });
+  app.addHook('preClose', async () => {
+    await collab.close();
+    dispatcher.close();
+  });
 
   return app;
 }

@@ -2,29 +2,38 @@
 
 A shared, multi-user notes platform. One organization holds a tree of
 directorates, divisions, branches, sections and projects. Each unit has its own
-people, groups, folders and access rules. This is **phase 1** of the
-[design spec](https://claude.ai/artifact/P2MH2qgMPLBcjqwP5ZUexi).
+people, groups, folders and access rules. It follows the
+[design spec](https://claude.ai/artifact/P2MH2qgMPLBcjqwP5ZUexi); this baseline
+covers phases 1 to 3 (foundation, live co-editing, review and notifications).
 
-## What phase 1 includes
+## What is included
 
-| Area | In this release |
+| Area | What you get |
 | --- | --- |
 | Org tree | Admin tree editor: right-click a unit to add the next level, rename, move (the whole subtree moves) or delete when empty |
 | Directory | Everyone can browse the whole tree and the people in it, with contact details |
 | Workspace | Each person sees only the units and folders their roles reach, plus recent pages, their groups, and pages shared with them |
 | Access | Roles (viewer, contributor, editor, approver, admin) granted to people or groups on a unit, folder or page, inherited downward and additive |
-| Pages | Text, headings, lists and tasks, tables, images, code, quotes; autosave; publish creates numbered, immutable versions |
-| Table formulas | Type `=` in a cell: `=SUM(B2:B5)`, `=AVERAGE(B2:B5)`, `MIN`, `MAX`, `COUNT`, `ROUND`, cell references and `+ - * /`. The table toolbar's Sum and Avg buttons total the column above the cursor. Cells show the result; click one to edit its formula |
-| Import and export | Markdown import (right-click a folder) and export (download button) |
+| Pages | Text, headings, lists and tasks, tables, images, quotes, dividers; numbered, immutable published versions; open any old version read-only |
+| Live co-editing | Several people edit the same draft at once, with each other's cursors and names, a presence row, live title changes, and saving as you type. Offline edits sync when the connection returns |
+| Code blocks | Syntax highlighting for about 35 languages, with a language picker in the toolbar |
+| Table formulas | Type `=` in a cell: `=SUM(B2:B5)`, `=AVERAGE(B2:B5)`, `MIN`, `MAX`, `COUNT`, `ROUND`, cell references and `+ - * /`. The table toolbar's Sum and Avg buttons total the column above the cursor |
+| Graphs | Bar, line and pie charts with their own data grid (Edit data) |
+| Sketch diagrams | Freehand boxes, arrows and shapes in Excalidraw, saved with an SVG picture |
+| Flowcharts | Diagrams written as Mermaid text (flowcharts, sequence diagrams, timelines), with templates and a live preview |
+| Review | Where a folder (or a unit above it) requires approval, writers submit drafts for review. Approvers see every change since the published version marked up inline, accept or reject each one (rejecting undoes it in the draft, live), comment, approve the whole draft, or send it back with a note. Self-approval can be allowed per folder or per person |
+| Review settings | Right-click a unit or folder: require approval, allow self-approval. Inherited down the tree; the nearest setting wins |
+| Watching | Watch a unit, folder or page to hear about reviews and publishes |
+| Notifications | In-app bell with unread count; email (SMTP) and Teams (Power Automate) delivery, set up by an admin and chosen per person |
+| Import and export | Markdown import (right-click a folder; ```mermaid fences become flowcharts) and export (graphs export as tables) |
 | Appearance | Light or dark, comfortable or compact, five accents or the brand color, chosen per person |
 | Branding | Admins set a brand color; readable light and dark accents are derived from it |
 | Attachments | Admin-set size limit, with per-role and per-group overrides, plus an allowed-types list |
-| Audit | Append-only log of sign-ins, tree changes, access changes, publishes and uploads |
-| Agents | People can be created with kind "agent" now; agent sign-in and editing come later |
+| Audit | Append-only log of sign-ins, tree changes, access changes, reviews, publishes, uploads and settings |
+| Agents | People can be created with kind "agent"; `PUT /api/pages/:id/draft` replaces a draft and reaches open editors live, ready for the AI agent later |
 
-The review flow (tracked changes, per-change approval, send back), live
-co-editing, notifications, Entra ID, graph and diagram blocks and the desktop
-app are later phases. The database already holds their tables.
+Still to come: Entra ID sign-in, directory sync, search, audit export and the
+AI assistant (its button is a placeholder).
 
 ## How it is built
 
@@ -55,8 +64,9 @@ cp .env.example .env        # then set real passwords and a 32+ character SESSIO
 docker compose run --rm migrate pnpm exec tsx src/seed.ts   # once: creates the org, placeholder tree and your admin
 ```
 
-Then point your nginx subdomain at it, and set `COOKIE_SECURE=true` once it is
-served over HTTPS:
+Then point your nginx subdomain at it, and set `COOKIE_SECURE=true` and
+`PUBLIC_URL=https://your.subdomain` once it is served over HTTPS. Live editing
+uses a WebSocket on `/api/collab`, so keep the `Upgrade` lines below:
 
 ```nginx
 location / {
@@ -152,6 +162,25 @@ Notes:
 - To build it yourself instead: `sudo apt install postgresql-16`, then
   `pnpm install && pnpm desktop:package`; the file lands in `apps/desktop/release`.
 
+## Email and Teams notifications
+
+Everyone gets notifications under the bell. An admin can also send them out
+(Settings, Organization):
+
+- **Email:** fill in the SMTP server, port, username, password and from
+  address (for Microsoft 365: `smtp.office365.com`, port 587, leave "TLS from the
+  start" unticked since it upgrades with STARTTLS; the account needs SMTP AUTH
+  enabled).
+- **Teams:** in Teams, open Workflows and create a flow that starts with
+  "When a Teams webhook request is received". Add "Post message in a chat or
+  channel", post as Flow bot to a chat with the recipient, and set the
+  recipient to `to` from the request body (`subject`, `text` and `url` are also
+  sent). Paste the flow's URL into Settings.
+
+Use **Save and send me a test** to check both. Each person then chooses email,
+Teams or both under Settings, Notifications. Links in messages use
+`PUBLIC_URL`.
+
 ## Develop locally
 
 Requires Node 22, pnpm 10 and a local Postgres 16.
@@ -174,14 +203,15 @@ pnpm test:e2e               # with the app running; see apps/web/playwright.conf
 ```
 
 - `packages/shared`: roles, tree rules, brand color contrast, upload limits,
-  Markdown export.
+  Markdown export, table formulas and the review diff.
 - `apps/api`: runs against a real, throwaway Postgres database per run. It
   covers sign-in, the tree editor (including subtree moves), permission
   inheritance through units and groups, drafts and publishing, tenant
-  isolation, the app role's restrictions, audit entries, upload limits and
-  branding.
-- `apps/web/e2e`: Playwright drives sign-in, writing, publishing, tables and
-  theme switching in a real browser.
+  isolation, the app role's restrictions, audit entries, upload limits,
+  branding, review settings and the whole review flow, notifications and
+  email/Teams delivery, and live co-editing over real WebSockets.
+- `apps/web/e2e`: Playwright drives sign-in, writing, publishing, formulas and
+  theme switching, then two people editing live and a full review.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, all tests and the web build on
 every push.

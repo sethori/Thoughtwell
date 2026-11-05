@@ -69,11 +69,30 @@ test('exports code blocks, images and unknown blocks', () => {
     content: [
       { type: 'codeBlock', attrs: { language: 'bash' }, content: [t('show vlan brief')] },
       { type: 'image', attrs: { src: '/api/assets/1', alt: 'Rack' } },
-      { type: 'sketch', attrs: {} },
+      { type: 'whiteboard', attrs: {} },
     ],
   };
   assert.equal(
     docToMarkdown(doc, 'Runbook'),
-    '# Runbook\n\n```bash\nshow vlan brief\n```\n\n![Rack](/api/assets/1)\n\n<!-- sketch block: open in the app to view -->\n',
+    '# Runbook\n\n```bash\nshow vlan brief\n```\n\n![Rack](/api/assets/1)\n\n<!-- whiteboard block: open in the app to view -->\n',
   );
+});
+
+test('graphs, flowcharts and sketches export with their content', async () => {
+  const { docToMarkdown, normalizeChart } = await import('../src/index.js');
+  const md = docToMarkdown({
+    type: 'doc',
+    content: [
+      { type: 'chart', attrs: { chartType: 'line', title: 'Sales', labels: ['Jan', 'Feb'], series: [{ name: 'A', values: [1, '2'] }] } },
+      { type: 'flowchart', attrs: { code: 'flowchart TD\n  A --> B' } },
+      { type: 'sketch', attrs: { svg: '<svg xmlns="http://www.w3.org/2000/svg"/>' } },
+    ],
+  });
+  assert.ok(md.includes('**Sales** (line chart)'));
+  assert.ok(md.includes('| Jan | 1 |') && md.includes('| Feb | 2 |'));
+  assert.ok(md.includes('```mermaid\nflowchart TD\n  A --> B\n```'));
+  assert.ok(md.includes('![Sketch diagram](data:image/svg+xml,'));
+  const c = normalizeChart({ chartType: 'nope', labels: ['a', 'b'], series: [{ values: [1] }] });
+  assert.equal(c.chartType, 'bar');
+  assert.deepEqual(c.series[0], { name: 'Series 1', values: [1, null] });
 });

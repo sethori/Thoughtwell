@@ -1,4 +1,4 @@
-import type { Preferences, Role, UnitType, DerivedScheme } from '@notes/shared';
+import type { Preferences, Role, UnitType, DerivedScheme, WatchEvent } from '@notes/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -49,8 +49,15 @@ export interface Me {
     is_org_admin: boolean;
     home_unit_name: string | null;
     preferences: Preferences;
+    email: string | null;
   };
-  org: { id: string; name: string; branding: { name: string | null; brandColor: string | null; scheme: DerivedScheme | null } };
+  org: {
+    id: string;
+    name: string;
+    branding: { name: string | null; brandColor: string | null; scheme: DerivedScheme | null };
+    /** Delivery channels an admin has set up. */
+    channels: { email: boolean; teams: boolean };
+  };
   groups: { id: string; name: string; unit_name: string }[];
 }
 
@@ -121,6 +128,74 @@ export interface Page {
   breadcrumb: { id: string; name: string; kind: 'unit' | 'folder' }[];
   draft: { content: PMDoc; rev: number; updatedAt: string; updatedBy: string | null } | null;
   published: { number: number; title: string; content: PMDoc; at: string } | null;
+  policy: { approvalRequired: boolean; canPublishDirectly: boolean; canApprove: boolean; selfApproval: boolean };
+  review: ReviewSummary | null;
+  watching: WatchEvent[];
+}
+
+export interface ReviewSummary {
+  id: string;
+  status: 'open' | 'sent_back' | 'approved' | 'withdrawn';
+  round: number;
+  created_at: string;
+  closed_at: string | null;
+  submitted_by_name: string | null;
+  mine: boolean;
+}
+
+export interface ReviewNote {
+  id: string;
+  kind: 'comment' | 'submit' | 'send_back' | 'approve' | 'withdraw';
+  body: string;
+  change_key: string | null;
+  created_at: string;
+  author_name: string | null;
+  author_id: string | null;
+}
+
+export interface Review {
+  id: string;
+  page_id: string;
+  status: ReviewSummary['status'];
+  round: number;
+  submitted_by: string | null;
+  submitted_by_name: string | null;
+  base_number: number | null;
+  created_at: string;
+  closed_at: string | null;
+  decisions: Record<string, 'accepted' | 'rejected'>;
+  notes: ReviewNote[];
+  canDecide: boolean;
+  canWithdraw: boolean;
+}
+
+export interface ReviewListItem {
+  id: string;
+  page_id: string;
+  status: ReviewSummary['status'];
+  round: number;
+  created_at: string;
+  closed_at: string | null;
+  page_title: string;
+  folder_name: string;
+  submitted_by_name: string | null;
+  latest_note: string | null;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  payload: { pageId: string; pageTitle: string; actorName: string; reviewId?: string };
+  read_at: string | null;
+  created_at: string;
+  title: string;
+  body: string;
+}
+
+export interface WorkflowSettings {
+  own: Partial<Record<'approval.required' | 'approval.allow_self', boolean>>;
+  effective: Record<'approval.required' | 'approval.allow_self', boolean>;
+  canEdit: boolean;
 }
 
 export interface Grant {

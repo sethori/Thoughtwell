@@ -11,7 +11,8 @@ test('sign in, write a page, publish it and switch theme', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
   // Create a page in the seeded "Notes" folder via its right-click menu.
-  const folder = page.getByRole('button', { name: /^Notes/ }).first();
+  // The folder row (the rail also has a Notes button).
+  const folder = page.locator('button[aria-expanded]', { hasText: 'Notes' }).first();
   await folder.click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'New page' }).click();
   const title = `E2E page ${Date.now()}`;
@@ -23,12 +24,12 @@ test('sign in, write a page, publish it and switch theme', async ({ page }) => {
   await page.keyboard.type('Written by the end-to-end test.');
   await expect(page.getByText('Saved', { exact: true })).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'Publish' }).click();
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await expect(page.getByText(/Published version 1/)).toBeVisible();
 
   // The tools panel inserts a table.
   await editor.click();
-  await page.getByRole('button', { name: 'Table' }).click();
+  await page.getByRole('button', { name: 'Table', exact: true }).click();
   await expect(editor.locator('table')).toBeVisible();
 
   // Formulas: the Sum button totals the column above, and typed formulas work too.
@@ -51,7 +52,7 @@ test('sign in, write a page, publish it and switch theme', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings and appearance' }).click();
   await page.getByRole('button', { name: 'Light' }).click();
   await page.getByRole('button', { name: 'Compact' }).click();
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-mode', 'light');
   await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
 });

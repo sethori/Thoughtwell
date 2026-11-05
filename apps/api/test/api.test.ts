@@ -45,12 +45,12 @@ describe('sign-in', () => {
   test('returns the profile with default preferences', async () => {
     const me = await admin.json('GET', '/api/me');
     assert.equal(me.user.username, 'admin');
-    assert.deepEqual(me.user.preferences, { mode: 'dark', accent: 'blue', density: 'comfortable' });
+    assert.deepEqual(me.user.preferences, { mode: 'dark', accent: 'blue', density: 'comfortable', notify: { email: true, teams: false } });
   });
 
   test('saves preferences per user', async () => {
     const r = await admin.json('PATCH', '/api/me/preferences', { mode: 'light', density: 'compact' });
-    assert.deepEqual(r.preferences, { mode: 'light', accent: 'blue', density: 'compact' });
+    assert.deepEqual(r.preferences, { mode: 'light', accent: 'blue', density: 'compact', notify: { email: true, teams: false } });
     const bad = await admin.req('PATCH', '/api/me/preferences', { mode: 'neon' });
     assert.equal(bad.statusCode, 400);
   });
@@ -250,7 +250,7 @@ describe('drafts and publishing', () => {
     assert.deepEqual(old.content, doc('v1'));
   });
 
-  test('a folder that requires approval cannot publish directly yet', async () => {
+  test('a folder that requires approval refuses direct publishing', async () => {
     const owner = new pg.Client({ connectionString: env.ownerUrl });
     await owner.connect();
     await owner.query(

@@ -107,8 +107,11 @@ test('normalizePreferences falls back to defaults on bad input', () => {
     mode: 'light',
     accent: 'blue',
     density: 'compact',
+    notify: { email: true, teams: false },
   });
   assert.equal(normalizePreferences({ accent: 'brand' }).accent, 'brand');
+  assert.deepEqual(normalizePreferences({ notify: { email: false, teams: true } }).notify, { email: false, teams: true });
+  assert.deepEqual(normalizePreferences({ notify: { email: 'yes' } }).notify, { email: true, teams: false });
 });
 
 test('upload limits take the most generous applicable rule', () => {

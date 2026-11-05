@@ -4,6 +4,7 @@ import { api, type Directory, type Person, type Unit } from '../lib/api';
 import { ConfirmDialog, ContextMenu, Dialog, PromptDialog, type MenuItem } from './Dialog';
 import { Icon } from './Icon';
 import { AccessDialog } from './AccessDialog';
+import { WorkflowDialog } from './WorkflowDialog';
 import { initials } from './Rail';
 
 type Pending =
@@ -12,6 +13,7 @@ type Pending =
   | { kind: 'move'; unit: Unit }
   | { kind: 'delete'; unit: Unit }
   | { kind: 'access'; unit: Unit }
+  | { kind: 'workflow'; unit: Unit }
   | { kind: 'folder'; unit: Unit }
   | { kind: 'group'; unit: Unit }
   | { kind: 'person'; person: Person };
@@ -81,6 +83,7 @@ export function OrgTree({
     items.push({ label: 'New folder here', icon: <Icon name="folder" small />, onSelect: () => setPending({ kind: 'folder', unit: u }) });
     items.push({ label: 'New group', icon: <Icon name="people" small />, onSelect: () => setPending({ kind: 'group', unit: u }) });
     items.push({ label: 'Manage access', icon: <Icon name="lock" small />, onSelect: () => setPending({ kind: 'access', unit: u }) });
+    items.push({ label: 'Review settings', icon: <Icon name="review" small />, onSelect: () => setPending({ kind: 'workflow', unit: u }) });
     if (u.parent_id) {
       items.push('sep');
       items.push({ label: 'Rename', icon: <Icon name="edit" small />, onSelect: () => setPending({ kind: 'rename', unit: u }) });
@@ -252,6 +255,9 @@ export function OrgTree({
             notify('Group created. Add members from People.');
           }}
         />
+      )}
+      {pending?.kind === 'workflow' && (
+        <WorkflowDialog scope="unit" id={pending.unit.id} name={pending.unit.name} onClose={() => setPending(null)} />
       )}
       {pending?.kind === 'access' && (
         <AccessDialog

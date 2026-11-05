@@ -9,6 +9,7 @@ import { loadConfig } from '../src/config.js';
 import { createPool } from '../src/db.js';
 import { migrate } from '../src/migrate.js';
 import { seed, type SeedResult } from '../src/seed.js';
+import { createDispatcher, type Dispatcher, type Message, type Senders } from '../src/lib/delivery.js';
 
 /**
  * Each test file gets its own throwaway database on a real Postgres.
@@ -23,6 +24,9 @@ export interface TestEnv {
   ownerUrl: string;
   appUrl: string;
   seeded: SeedResult;
+  dispatcher: Dispatcher;
+  /** Messages the fake email and Teams senders were asked to send. */
+  sent: { channel: 'email' | 'teams'; message: Message }[];
   close(): Promise<void>;
 }
 
@@ -32,7 +36,7 @@ function withDb(url: string, db: string): string {
   return u.toString();
 }
 
-export async function setup(): Promise<TestEnv> {
+export async function setup(opts: { failEmail?: boolean } = {}): Promise<TestEnv> {
   const dbName = 'notes_test_' + randomBytes(4).toString('hex');
   const admin = new pg.Client({ connectionString: ADMIN_URL });
   await admin.connect();
@@ -60,13 +64,26 @@ export async function setup(): Promise<TestEnv> {
     storageDir: await mkdtemp(join(tmpdir(), 'notes-assets-')),
     logLevel: 'silent',
   });
-  const app = await buildApp({ config, pool });
+  const sent: TestEnv['sent'] = [];
+  const senders: Senders = {
+    async email(_s, message) {
+      if (opts.failEmail) throw new Error('mail server down');
+      sent.push({ channel: 'email', message });
+    },
+    async teams(_s, message) {
+      sent.push({ channel: 'teams', message });
+    },
+  };
+  const dispatcher = createDispatcher(pool, 'https://notes.test', senders, 3_600_000);
+  const app = await buildApp({ config, pool, dispatcher });
 
   return {
     app,
     ownerUrl,
     appUrl,
     seeded,
+    dispatcher,
+    sent,
     async close() {
       await app.close();
       await pool.end();
@@ -82,7 +99,7 @@ export async function setup(): Promise<TestEnv> {
 export class Client {
   constructor(
     private readonly app: FastifyInstance,
-    private cookie = '',
+    readonly cookie = '',
   ) {}
 
   static async login(app: FastifyInstance, username: string, password: string): Promise<Client> {

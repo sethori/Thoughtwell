@@ -39,6 +39,7 @@ services:
       APP_DATABASE_URL: postgres://notes_app:${APP_DB_PASSWORD}@db:5432/${POSTGRES_DB}
       SESSION_SECRET: ${SESSION_SECRET}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      PUBLIC_URL: ${PUBLIC_URL:-}
       STORAGE_DIR: /data/assets
       API_PORT: 3000
     volumes:

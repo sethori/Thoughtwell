@@ -4,6 +4,8 @@
  * Blocks without a Markdown equivalent are exported as a short placeholder
  * so nothing disappears silently.
  */
+import { normalizeChart } from './chart.js';
+
 export interface PMNode {
   type: string;
   attrs?: Record<string, unknown>;
@@ -88,9 +90,28 @@ function block(n: PMNode): string {
       return image(n);
     case 'table':
       return table(n);
+    case 'flowchart':
+      return '```mermaid\n' + String(n.attrs?.code ?? '').trim() + '\n```';
+    case 'chart':
+      return chart(n);
+    case 'sketch': {
+      const svg = String(n.attrs?.svg ?? '');
+      return svg ? `![Sketch diagram](data:image/svg+xml,${encodeURIComponent(svg)})` : '<!-- empty sketch diagram -->';
+    }
     default:
       return n.content ? blocks(n.content) : `<!-- ${n.type} block: open in the app to view -->`;
   }
+}
+
+/** A graph exports as its data table, so the numbers survive. */
+function chart(n: PMNode): string {
+  const c = normalizeChart(n.attrs);
+  const cell = (s: string) => s.replace(/\|/g, '\\|');
+  const head = ['', ...c.series.map((s) => cell(s.name))];
+  const rows = c.labels.map((l, i) => [cell(l), ...c.series.map((s) => (s.values[i] ?? '').toString())]);
+  const line = (r: string[]) => '| ' + r.join(' | ') + ' |';
+  const title = c.title ? `**${escapeText(c.title)}** (${c.chartType} chart)\n\n` : `*${c.chartType} chart*\n\n`;
+  return title + [line(head), line(head.map(() => '---')), ...rows.map(line)].join('\n');
 }
 
 function table(n: PMNode): string {

@@ -6,6 +6,10 @@ import { audit } from '../lib/audit.js';
 import { conflict, notFound } from '../lib/errors.js';
 import { idParams, parse, uuid } from '../lib/validate.js';
 import { requireRole } from '../services/access.js';
+import { notify, watchersOf } from '../services/notify.js';
+import { publishDraft, publishPolicy } from '../services/workflow.js';
+import type { AppDeps } from '../app.js';
+import type { JsonNode } from '../collab/ydoc.js';
 
 /**
  * draft: never published. published: the draft matches the live version.
@@ -36,7 +40,8 @@ const draftBody = z.object({
 });
 const versionParams = z.object({ id: uuid, number: z.coerce.number().int().positive() });
 
-export async function pageRoutes(app: FastifyInstance) {
+export async function pageRoutes(app: FastifyInstance, deps: Pick<AppDeps, 'collab' | 'dispatcher'> = {}) {
+  const { collab, dispatcher } = deps;
   app.post('/api/pages', async (req, reply) => {
     const body = parse(createBody, req.body);
     const page = await req.tx(async (db, auth) => {
@@ -85,6 +90,24 @@ export async function pageRoutes(app: FastifyInstance) {
         [page.folder_id],
       );
       const canSeeDraft = roleAtLeast(role, 'contributor');
+      const policy = await publishPolicy(db, auth.userId, id);
+      // The open review, or the one most recently closed, so a sent-back note stays visible.
+      const review = canSeeDraft
+        ? await one(
+            db,
+            `SELECT r.id, r.status, r.round, r.created_at, r.closed_at, su.display_name AS submitted_by_name,
+                    r.submitted_by = $2 AS mine
+             FROM review_requests r LEFT JOIN users su ON su.id = r.submitted_by
+             WHERE r.page_id = $1 AND (r.status = 'open' OR (r.status = 'sent_back' AND r.closed_at > now() - interval '30 days'))
+             ORDER BY r.created_at DESC LIMIT 1`,
+            [id, auth.userId],
+          )
+        : null;
+      const watch = await one<{ events: string[] }>(
+        db,
+        `SELECT events FROM watches WHERE user_id = $1 AND scope_type = 'page' AND scope_id = $2`,
+        [auth.userId, id],
+      );
       const {
         draft_content,
         draft_rev,
@@ -99,6 +122,14 @@ export async function pageRoutes(app: FastifyInstance) {
       return {
         ...rest,
         role,
+        policy: {
+          approvalRequired: policy.approvalRequired,
+          canPublishDirectly: policy.canPublishDirectly,
+          canApprove: policy.canApprove,
+          selfApproval: policy.selfApproval,
+        },
+        review: review ?? null,
+        watching: watch?.events ?? [],
         breadcrumb: breadcrumb.map(({ id, name, kind }) => ({ id, name, kind })),
         draft: canSeeDraft
           ? { content: draft_content, rev: draft_rev, updatedAt: draft_updated_at, updatedBy: draft_updated_by_name }
@@ -110,56 +141,68 @@ export async function pageRoutes(app: FastifyInstance) {
     });
   });
 
-  /** Saves the draft. Phase 2 replaces this with live Yjs sync; until then, last save must match. */
+  /**
+   * Replaces the whole draft. The editor saves through live editing instead;
+   * this is for scripts, imports and (later) the AI agent. `baseRev` must match
+   * the latest saved revision, so a stale copy cannot overwrite newer work.
+   */
   app.put('/api/pages/:id/draft', async (req) => {
     const { id } = parse(idParams, req.params);
     const body = parse(draftBody, req.body);
-    return req.tx(async (db, auth) => {
+    await collab?.flush(id);
+    await req.tx(async (db, auth) => {
       await requireRole(db, auth.userId, 'page', id, 'contributor');
-      const row = await one<{ draft_rev: number; draft_updated_at: string }>(
-        db,
-        `UPDATE pages SET title = $2, draft_content = $3, draft_rev = draft_rev + 1,
-                draft_updated_at = now(), draft_updated_by = $4
-         WHERE id = $1 AND draft_rev = $5 AND archived_at IS NULL
-         RETURNING draft_rev, draft_updated_at`,
-        [id, body.title || 'Untitled', body.content, auth.userId, body.baseRev],
-      );
-      if (!row) throw conflict('Someone else saved this page after you opened it. Reload to see their changes.');
-      return { rev: row.draft_rev, updatedAt: row.draft_updated_at };
+      const row = await one<{ draft_rev: number }>(db, 'SELECT draft_rev FROM pages WHERE id = $1 AND archived_at IS NULL', [id]);
+      if (!row) throw notFound();
+      if (row.draft_rev !== body.baseRev) {
+        throw conflict('Someone else saved this page after you opened it. Reload to see their changes.');
+      }
+      if (!collab) {
+        await db.query(
+          `UPDATE pages SET title = $2, draft_content = $3, draft_state = NULL, draft_rev = draft_rev + 1,
+                  draft_updated_at = now(), draft_updated_by = $4 WHERE id = $1`,
+          [id, body.title || 'Untitled', body.content, auth.userId],
+        );
+      }
+    });
+    if (collab) await collab.replace(req.auth!.orgId, id, body.content as JsonNode, body.title || 'Untitled', req.auth!.userId);
+    return req.tx(async (db) => {
+      const r = await one<{ draft_rev: number; draft_updated_at: string }>(db, 'SELECT draft_rev, draft_updated_at FROM pages WHERE id = $1', [id]);
+      return { rev: r!.draft_rev, updatedAt: r!.draft_updated_at };
     });
   });
 
   /**
-   * Phase 1 publishes directly. A folder whose settings require approval is
-   * refused here until the review flow arrives in phase 3.
+   * Publishes the draft directly. Where a folder requires approval, only an
+   * approver who may approve their own work can do this; everyone else submits
+   * the draft for review instead.
    */
   app.post('/api/pages/:id/publish', async (req) => {
     const { id } = parse(idParams, req.params);
-    return req.tx(async (db, auth) => {
+    await collab?.flush(id);
+    const result = await req.tx(async (db, auth) => {
       await requireRole(db, auth.userId, 'page', id, 'contributor');
-      const page = await one<{ folder_id: string; title: string; draft_content: unknown }>(
-        db,
-        'SELECT folder_id, title, draft_content FROM pages WHERE id = $1 AND archived_at IS NULL FOR UPDATE',
-        [id],
-      );
-      if (!page) throw notFound();
-      const approval = await one<{ v: unknown }>(db, `SELECT resolve_setting($1, 'approval.required') AS v`, [
-        page.folder_id,
-      ]);
-      if (approval?.v === true) {
-        throw conflict('This folder requires approval before publishing. Review arrives in phase 3.');
+      const policy = await publishPolicy(db, auth.userId, id);
+      if (!policy.canPublishDirectly) {
+        throw conflict('This folder requires approval before publishing. Submit the draft for review instead.');
       }
-      const version = await one<{ id: string; number: number; created_at: string }>(
-        db,
-        `INSERT INTO page_versions (org_id, page_id, number, title, content, created_by)
-         VALUES ($1, $2, (SELECT coalesce(max(number), 0) + 1 FROM page_versions WHERE page_id = $2), $3, $4, $5)
-         RETURNING id, number, created_at`,
-        [auth.orgId, id, page.title, page.draft_content, auth.userId],
-      );
-      await db.query('UPDATE pages SET published_version_id = $2 WHERE id = $1', [id, version!.id]);
-      await audit(db, auth, 'page.publish', 'page', id, { version: version!.number });
-      return { number: version!.number, at: version!.created_at };
+      const open = await one<{ id: string }>(db, `SELECT id FROM review_requests WHERE page_id = $1 AND status = 'open'`, [id]);
+      const version = await publishDraft(db, auth, id, open?.id ?? null);
+      // Publishing directly settles any open review.
+      if (open) {
+        await db.query(`UPDATE review_requests SET status = 'approved', closed_at = now(), decided_by = $2 WHERE id = $1`, [open.id, auth.userId]);
+      }
+      const folder = await one<{ name: string }>(db, 'SELECT f.name FROM pages p JOIN folders f ON f.id = p.folder_id WHERE p.id = $1', [id]);
+      await notify(db, auth, 'page.published', await watchersOf(db, id, 'published'), {
+        pageId: id,
+        pageTitle: version.title,
+        version: version.number,
+        folderName: folder?.name,
+      });
+      return { number: version.number, at: version.created_at };
     });
+    dispatcher?.kick(req.auth!.orgId);
+    return result;
   });
 
   app.get('/api/pages/:id/versions', async (req) => {
