@@ -1,5 +1,5 @@
 import { spawn, execFile, type ChildProcess } from 'node:child_process';
-import { createWriteStream, existsSync } from 'node:fs';
+import { closeSync, existsSync, openSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
@@ -70,7 +70,8 @@ export class EmbeddedPostgres {
 
     this.port = await freePort();
     this.socketDir = await mkdtemp(join(tmpdir(), 'notes-pg-'));
-    const log = createWriteStream(this.logFile, { flags: 'a' });
+    // spawn() needs a real file descriptor here, not a stream.
+    const log = openSync(this.logFile, 'a');
     const child = spawn(
       join(this.bin, 'postgres'),
       [
@@ -86,6 +87,7 @@ export class EmbeddedPostgres {
       ],
       { env: this.env, stdio: ['ignore', log, log] },
     );
+    closeSync(log); // the child holds its own copy
     this.child = child;
     const exited = new Promise<never>((_, reject) => {
       child.once('exit', (code, signal) =>
