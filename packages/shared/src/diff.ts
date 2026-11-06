@@ -10,6 +10,8 @@
  * works the same way for every kind of block.
  */
 
+import { diagramText, normalizeDiagram } from './flow.js';
+
 export interface JsonNode {
   type: string;
   attrs?: Record<string, unknown>;
@@ -97,7 +99,8 @@ export function blockLabel(node: JsonNode): string {
 }
 
 function summarize(node: JsonNode): string {
-  const text = nodeText(node).replace(/\s+/g, ' ').trim();
+  const raw = node.type === 'flowchart' ? diagramText(normalizeDiagram(node.attrs?.diagram)) : nodeText(node);
+  const text = raw.replace(/\s+/g, ' ').trim();
   const label = blockLabel(node);
   if (!text) return label;
   return `${label}: ${text.length > 80 ? `${text.slice(0, 79)}…` : text}`;

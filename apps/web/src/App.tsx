@@ -10,6 +10,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { PeopleDialog } from './components/PeopleDialog';
 import { ReviewInbox } from './components/ReviewInbox';
 import { NotificationsPanel } from './components/NotificationsPanel';
+import { OrgChart } from './components/OrgChart';
 
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
@@ -17,6 +18,8 @@ export function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [directory, setDirectory] = useState<Directory | null>(null);
   const [view, setView] = useState<RailView>('notes');
+  // The library's own tab: My workspace or the org directory list.
+  const [libView, setLibView] = useState<'workspace' | 'directory'>('workspace');
   const [pageId, setPageId] = useState<string | null>(() => new URLSearchParams(location.search).get('page'));
   const [openReview, setOpenReview] = useState(false);
   // Bumped whenever a page is opened from a list, so an already-open page reloads its review state.
@@ -78,6 +81,7 @@ export function App() {
   }, [me, loadUnread]);
 
   const openPage = useCallback((id: string, review = false) => {
+    setView('notes');
     setOpenReview(review);
     setOpenNonce((n) => n + 1);
     setPageId(id);
@@ -96,7 +100,7 @@ export function App() {
 
 
   return (
-    <div className="app">
+    <div className={`app ${view === 'orgchart' ? 'org-mode' : ''}`}>
       <Rail
         me={me}
         view={view}
@@ -117,8 +121,8 @@ export function App() {
       />
       <Library
         me={me}
-        view={view === 'directory' ? 'directory' : 'workspace'}
-        onViewChange={(v) => setView(v === 'directory' ? 'directory' : 'notes')}
+        view={libView}
+        onViewChange={setLibView}
         workspace={workspace}
         directory={directory}
         selectedPageId={pageId}
@@ -127,29 +131,33 @@ export function App() {
         notify={notify}
       />
       <main className="center">
-        {pageId ? (
-          <PageView
-            key={pageId}
-            pageId={pageId}
-            me={me}
-            rightSlot={rightSlot}
-            openReview={openReview}
-            openNonce={openNonce}
-            onSaved={refresh}
-            onClosed={() => {
-              setPageId(null);
-              void refresh();
-            }}
-            notify={notify}
-          />
-        ) : (
-          <div className="stage">
-            <div className="welcome">
-              <h2>Welcome, {me.user.display_name}</h2>
-              <p>Open a page from the library, or right-click a folder to create one.</p>
+        {view === 'orgchart' && directory && <OrgChart directory={directory} />}
+        {/* Kept mounted behind the chart, so an open page stays connected. */}
+        <div className="center-notes" hidden={view === 'orgchart'}>
+          {pageId ? (
+            <PageView
+              key={pageId}
+              pageId={pageId}
+              me={me}
+              rightSlot={rightSlot}
+              openReview={openReview}
+              openNonce={openNonce}
+              onSaved={refresh}
+              onClosed={() => {
+                setPageId(null);
+                void refresh();
+              }}
+              notify={notify}
+            />
+          ) : (
+            <div className="stage">
+              <div className="welcome">
+                <h2>Welcome, {me.user.display_name}</h2>
+                <p>Open a page from the library, or right-click a folder to create one.</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
       {/* The open page puts its own tools panel here. */}
       <div className="right-slot" ref={setRightSlot}>

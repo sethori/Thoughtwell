@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { mergeAttributes, Node, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react';
+import { normalizeDiagram } from '@notes/shared';
 import { Dialog } from '../components/Dialog';
+import { Icon } from '../components/Icon';
 import { dataAttr } from './attrs';
+import { FlowCanvas } from './FlowCanvas';
 import { isDark, renderMermaid, svgDataUrl } from './mermaid';
 
 export const FLOWCHART_TEMPLATES: Record<string, string> = {
@@ -32,7 +35,11 @@ export const FLOWCHART_TEMPLATES: Record<string, string> = {
   B1 --> S1[Section 1]`,
 };
 
-/** A diagram written as Mermaid text: flowcharts, sequence diagrams, timelines and more. */
+/**
+ * A flowchart. New ones are drawn right on the page (shapes and arrows,
+ * stored in `diagram`). Older ones were written as Mermaid text (`code`) and
+ * keep their text editor.
+ */
 export const FlowchartBlock = Node.create({
   name: 'flowchart',
   group: 'block',
@@ -40,7 +47,11 @@ export const FlowchartBlock = Node.create({
   draggable: true,
   selectable: true,
   addAttributes() {
-    return { code: dataAttr('code', FLOWCHART_TEMPLATES.Flowchart!, false) };
+    return {
+      code: dataAttr('code', '', false),
+      diagram: dataAttr<unknown>('diagram', null),
+      height: dataAttr('height', 320),
+    };
   },
   parseHTML() {
     return [{ tag: 'div[data-type="flowchart"]' }];
@@ -49,7 +60,10 @@ export const FlowchartBlock = Node.create({
     return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'flowchart' })];
   },
   addNodeView() {
-    return ReactNodeViewRenderer(FlowchartView);
+    return ReactNodeViewRenderer(FlowchartView, {
+      // The drawing handles its own pointer and keys; only the grip moves the block.
+      stopEvent: ({ event }) => !(event.target instanceof Element && event.target.closest('[data-drag-handle]')),
+    });
   },
 });
 
@@ -83,12 +97,38 @@ function Diagram({ code }: { code: string }) {
 }
 
 function FlowchartView({ node, updateAttributes, editor, selected }: NodeViewProps) {
-  const [editing, setEditing] = useState(false);
   const code = String(node.attrs.code ?? '');
+  const diagram = useMemo(() => normalizeDiagram(node.attrs.diagram), [node.attrs.diagram]);
+  const legacy = Boolean(code.trim()) && diagram.nodes.length === 0;
+  return legacy ? (
+    <MermaidView code={code} editable={editor.isEditable} selected={selected} onSave={(c) => updateAttributes({ code: c })} />
+  ) : (
+    <NodeViewWrapper className={`embed flow-embed ${selected ? 'sel' : ''}`}>
+      {editor.isEditable && (
+        <span className="embed-grip" data-drag-handle draggable="true" contentEditable={false} title="Drag to move the flowchart">
+          <Icon name="move" small />
+        </span>
+      )}
+      <div contentEditable={false}>
+        <FlowCanvas
+          diagram={diagram}
+          height={Number(node.attrs.height) || 320}
+          editable={editor.isEditable}
+          onChange={(d) => updateAttributes({ diagram: d })}
+          onHeight={(h) => updateAttributes({ height: h })}
+        />
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+/** An older flowchart written as Mermaid text. */
+function MermaidView({ code, editable, selected, onSave }: { code: string; editable: boolean; selected: boolean; onSave: (code: string) => void }) {
+  const [editing, setEditing] = useState(false);
   return (
     <NodeViewWrapper className={`embed ${selected ? 'sel' : ''}`} data-drag-handle>
       <Diagram code={code} />
-      {editor.isEditable && (
+      {editable && (
         <div className="embed-bar" contentEditable={false}>
           <button type="button" className="btn" onClick={() => setEditing(true)}>
             Edit diagram
@@ -100,7 +140,7 @@ function FlowchartView({ node, updateAttributes, editor, selected }: NodeViewPro
           initial={code}
           onClose={() => setEditing(false)}
           onSave={(c) => {
-            updateAttributes({ code: c });
+            onSave(c);
             setEditing(false);
           }}
         />

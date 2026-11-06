@@ -7,6 +7,7 @@ import { roleAtLeast, type DocChange, type JsonNode, type PMNode } from '@notes/
 import { api, type Me, type Page, type PMDoc, type Review } from '../lib/api';
 import { colorFor, openCollab, peersOf, type CollabSession, type Peer } from '../lib/collab';
 import { CODE_LANGUAGES, extensions, placeholder } from '../lib/extensions';
+import { cancelPlacement, Placement } from '../lib/placement';
 import { currentCell, insertColumnFormula } from '../lib/formulas';
 import { downloadMarkdown } from '../lib/markdown';
 import { rejectChange, reviewChanges, ReviewMarkup, setReview } from '../lib/review';
@@ -255,6 +256,7 @@ function LivePage({
         Collaboration.configure({ document: ydoc }),
         CollaborationCursor.configure({ provider, user }),
         ReviewMarkup,
+        Placement,
       ],
       editable: canEdit,
       editorProps: {
@@ -286,6 +288,8 @@ function LivePage({
   );
   const editorRef = useRef<Editor | null>(null);
   editorRef.current = editor;
+  // A table or diagram half-drawn when the page closes is dropped.
+  useEffect(() => cancelPlacement, []);
 
   // Connection, saving and presence.
   useEffect(() => {

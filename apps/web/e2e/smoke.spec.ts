@@ -27,10 +27,18 @@ test('sign in, write a page, publish it and switch theme', async ({ page }) => {
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await expect(page.getByText(/Published version 1/)).toBeVisible();
 
-  // The tools panel inserts a table.
-  await editor.click();
-  await page.getByRole('button', { name: 'Table', exact: true }).click();
+  // Click the Table tool, then draw it on the page: about three columns by three rows.
+  await page.getByRole('button', { name: /^Table/ }).click();
+  const box = (await editor.boundingBox())!;
+  const x = box.x + 8;
+  const y = box.y + box.height - 4;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 200, y + 60, { steps: 4 });
+  await page.mouse.move(x + 330, y + 100, { steps: 4 });
+  await page.mouse.up();
   await expect(editor.locator('table')).toBeVisible();
+  await expect(editor.locator('table tr').first().locator('th')).toHaveCount(3);
 
   // Formulas: the Sum button totals the column above, and typed formulas work too.
   const cells = editor.locator('table td');
@@ -64,4 +72,21 @@ test('the org directory shows the tree for everyone', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByRole('tab', { name: 'Org directory' }).click();
   await expect(page.getByText('Directorate 1')).toBeVisible();
+});
+
+test('the org chart shows units and can hide the people', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Username').fill(username);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Org chart' }).click();
+  await expect(page.getByRole('heading', { name: 'Org chart' })).toBeVisible();
+  await expect(page.locator('.oc-card', { hasText: 'Directorate 1' })).toBeVisible();
+  // The signed-in admin sits somewhere on the chart.
+  await expect(page.locator('.oc-person').first()).toBeVisible();
+  await page.getByText('Show people').click();
+  await expect(page.locator('.oc-person')).toHaveCount(0);
+  // Back to notes keeps working.
+  await page.getByRole('button', { name: 'Notes' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Org chart' })).toHaveCount(0);
 });

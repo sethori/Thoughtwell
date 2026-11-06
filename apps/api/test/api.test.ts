@@ -134,6 +134,18 @@ describe('org tree editor', () => {
     assert.ok(dir.people.some((p: any) => p.id === viewer.id));
     assert.equal(dir.people[0].password_hash, undefined);
   });
+
+  test('lists the units each person is assigned to, for the org chart', async () => {
+    const u = env.seeded.units;
+    const chief = await createUser('chart-chief', { homeUnitId: u.section2 });
+    const group = await admin.json('POST', '/api/groups', { unitId: u.divA, name: 'Division A leads' });
+    await admin.json('POST', `/api/groups/${group.id}/members`, { userId: chief.id });
+    // An access grant alone does not place someone on the chart.
+    await grant(chief.id, 'unit', u.org, 'viewer');
+    const dir = await admin.json('GET', '/api/directory');
+    const p = dir.people.find((x: any) => x.id === chief.id);
+    assert.deepEqual([...p.unit_ids].sort(), [u.divA, u.section2].sort());
+  });
 });
 
 describe('permissions', () => {

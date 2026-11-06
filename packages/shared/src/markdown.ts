@@ -5,6 +5,7 @@
  * so nothing disappears silently.
  */
 import { normalizeChart } from './chart.js';
+import { diagramToMermaid, normalizeDiagram } from './flow.js';
 
 export interface PMNode {
   type: string;
@@ -90,8 +91,12 @@ function block(n: PMNode): string {
       return image(n);
     case 'table':
       return table(n);
-    case 'flowchart':
-      return '```mermaid\n' + String(n.attrs?.code ?? '').trim() + '\n```';
+    case 'flowchart': {
+      // Drawn on the page, or (older blocks) written as Mermaid text.
+      const drawn = normalizeDiagram(n.attrs?.diagram);
+      const code = drawn.nodes.length ? diagramToMermaid(drawn) : String(n.attrs?.code ?? '').trim();
+      return code ? '```mermaid\n' + code + '\n```' : '<!-- empty flowchart -->';
+    }
     case 'chart':
       return chart(n);
     case 'sketch': {

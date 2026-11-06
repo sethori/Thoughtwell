@@ -1,7 +1,7 @@
 import type { Me } from '../lib/api';
 import { Icon, type IconName } from './Icon';
 
-export type RailView = 'notes' | 'directory' | 'review' | 'people' | 'settings' | 'notifications' | 'ai';
+export type RailView = 'notes' | 'orgchart' | 'review' | 'people' | 'settings' | 'notifications' | 'ai';
 
 function initials(name: string) {
   return name
@@ -44,7 +44,7 @@ export function Rail({
         <Icon name="note" />
       </div>
       {btn('notes', 'note', 'Notes')}
-      {btn('directory', 'org', 'Org directory')}
+      {btn('orgchart', 'org', 'Org chart')}
       {btn('review', 'review', 'Review inbox')}
       {me.user.is_org_admin && btn('people', 'people', 'People')}
       <div className="spacer" />

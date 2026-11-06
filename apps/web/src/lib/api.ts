@@ -78,6 +78,8 @@ export interface Person {
   phone: string | null;
   home_unit_id: string | null;
   kind: 'person' | 'agent';
+  /** Every unit this person is assigned to: their home unit and the units of their groups. */
+  unit_ids?: string[];
 }
 
 export interface Directory {

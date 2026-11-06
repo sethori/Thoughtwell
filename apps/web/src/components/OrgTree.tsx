@@ -19,7 +19,7 @@ type Pending =
   | { kind: 'person'; person: Person };
 
 const COLORS = ['#c2306f', '#1f7a8c', '#6a3fd6', '#a1561c', '#2f6fd1', '#3a7d2c'];
-const colorFor = (id: string) => COLORS[parseInt(id.slice(0, 6), 16) % COLORS.length];
+export const colorFor = (id: string) => COLORS[parseInt(id.slice(0, 6), 16) % COLORS.length];
 
 /**
  * The whole organization, for reference: every unit and the people in it.
@@ -268,37 +268,42 @@ export function OrgTree({
           onClose={() => setPending(null)}
         />
       )}
-      {pending?.kind === 'person' && (
-        <Dialog title={pending.person.display_name} sub={pending.person.title ?? undefined} onClose={() => setPending(null)}>
-          <div className="list">
-            <div>
-              <Icon name="org" small />
-              {directory.units.find((u) => u.id === pending.person.home_unit_id)?.name ?? 'No home unit'}
-            </div>
-            {pending.person.email && (
-              <div>
-                <Icon name="mail" small />
-                <a href={`mailto:${pending.person.email}`} style={{ color: 'var(--accent)' }}>
-                  {pending.person.email}
-                </a>
-              </div>
-            )}
-            {pending.person.phone && (
-              <div>
-                <Icon name="user" small />
-                <a href={`tel:${pending.person.phone}`} style={{ color: 'var(--accent)' }}>
-                  {pending.person.phone}
-                </a>
-              </div>
-            )}
-          </div>
-          <div className="actions">
-            <button type="button" className="btn" onClick={() => setPending(null)}>
-              Close
-            </button>
-          </div>
-        </Dialog>
-      )}
+      {pending?.kind === 'person' && <PersonDialog person={pending.person} directory={directory} onClose={() => setPending(null)} />}
     </>
+  );
+}
+
+/** Contact details for one person in the directory. */
+export function PersonDialog({ person, directory, onClose }: { person: Person; directory: Directory; onClose: () => void }) {
+  return (
+    <Dialog title={person.display_name} sub={person.title ?? undefined} onClose={onClose}>
+      <div className="list">
+        <div>
+          <Icon name="org" small />
+          {directory.units.find((u) => u.id === person.home_unit_id)?.name ?? 'No home unit'}
+        </div>
+        {person.email && (
+          <div>
+            <Icon name="mail" small />
+            <a href={`mailto:${person.email}`} style={{ color: 'var(--accent)' }}>
+              {person.email}
+            </a>
+          </div>
+        )}
+        {person.phone && (
+          <div>
+            <Icon name="user" small />
+            <a href={`tel:${person.phone}`} style={{ color: 'var(--accent)' }}>
+              {person.phone}
+            </a>
+          </div>
+        )}
+      </div>
+      <div className="actions">
+        <button type="button" className="btn" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Dialog>
   );
 }

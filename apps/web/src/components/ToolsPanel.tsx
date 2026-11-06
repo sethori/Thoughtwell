@@ -4,7 +4,7 @@ import { NodeSelection } from '@tiptap/pm/state';
 import { SAMPLE_CHART, type DocChange } from '@notes/shared';
 import type { Page, Review } from '../lib/api';
 import { focusChange } from '../lib/review';
-import { FLOWCHART_TEMPLATES } from '../blocks/FlowchartBlock';
+import { insertAtCursor, pressTool, type PlaceKind } from '../lib/placement';
 import { Icon, type IconName } from './Icon';
 import { PromptDialog } from './Dialog';
 import { uploadImage } from './PageView';
@@ -39,6 +39,7 @@ export function ToolsPanel({
   tools?: PageTools;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const lastPointer = useRef('');
   const can = Boolean(editor);
   // When a block (graph, image…) is selected, new things go after it rather than replacing it.
   const c = () => {
@@ -65,11 +66,40 @@ export function ToolsPanel({
       <span className="label">{label}</span>
     </button>
   );
+  /**
+   * Blocks placed by hand: click, then drag a rectangle on the page to draw
+   * it; or hold and drag the tool onto the page, then size it. From the
+   * keyboard, Enter puts one at the cursor.
+   */
+  const placeTool = (label: string, icon: IconName, kind: PlaceKind) => (
+    <button
+      type="button"
+      className="it place"
+      disabled={!can}
+      title={`Click, then drag on the page to draw a ${label.toLowerCase()}. Or drag it onto the page.`}
+      onPointerDown={(e) => {
+        lastPointer.current = e.pointerType;
+        if (editor && e.pointerType !== 'touch') {
+          e.preventDefault();
+          pressTool(editor, kind, e);
+        }
+      }}
+      onClick={(e) => {
+        // Keyboard and touch: no drawing, just one at the cursor.
+        if (editor && (e.detail === 0 || lastPointer.current === 'touch')) insertAtCursor(editor, kind);
+        lastPointer.current = '';
+      }}
+    >
+      <Icon name={icon} small />
+      <span className="label">{label}</span>
+      <span className="meta">Draw</span>
+    </button>
+  );
 
   return (
     <aside className="right" aria-label="Note tools">
       <div className="rhd">Thoughtwell</div>
-      <div className="rsub">{can ? 'Click a tool to insert it at the cursor' : pageId ? 'Read only' : 'Open a page to use the tools'}</div>
+      <div className="rsub">{can ? 'Click a tool to insert it. Table, flowchart and sketch: click and draw, or drag onto the page.' : pageId ? 'Read only' : 'Open a page to use the tools'}</div>
 
       {!reviewing && (
         <>
@@ -79,14 +109,14 @@ export function ToolsPanel({
           {tool('Text', 'text', () => c().setParagraph().run())}
           {tool('Heading', 'heading', () => c().toggleHeading({ level: 2 }).run())}
           {tool('List and tasks', 'tasks', () => c().toggleTaskList().run())}
-          {tool('Table', 'table', () => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), 'Insert a table; type = in a cell for formulas')}
+          {placeTool('Table', 'table', 'table')}
           {tool('Image', 'image', () => fileInput.current?.click())}
           {tool('Code', 'code', () => c().toggleCodeBlock().run(), 'Insert a code block with syntax highlighting')}
           {tool('Quote', 'quote', () => c().toggleBlockquote().run())}
           {tool('Divider', 'callout', () => block({ type: 'horizontalRule' }))}
           {tool('Graph', 'graph', () => block({ type: 'chart', attrs: { ...SAMPLE_CHART } }), 'Insert a bar, line or pie chart')}
-          {tool('Sketch diagram', 'sketch', () => block({ type: 'sketch' }), 'Insert a freehand diagram (Excalidraw)')}
-          {tool('Flowchart', 'flow', () => block({ type: 'flowchart', attrs: { code: FLOWCHART_TEMPLATES.Flowchart } }), 'Insert a flowchart written as text')}
+          {placeTool('Flowchart', 'flow', 'flowchart')}
+          {placeTool('Sketch diagram', 'sketch', 'sketch')}
         </>
       )}
 

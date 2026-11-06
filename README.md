@@ -11,6 +11,7 @@ covers phases 1 to 3 (foundation, live co-editing, review and notifications).
 | Area | What you get |
 | --- | --- |
 | Org tree | Admin tree editor: right-click a unit to add the next level, rename, move (the whole subtree moves) or delete when empty |
+| Org chart | The Org button on the left opens a top-down chart of the whole organization. People are listed under the highest unit they belong to (home unit or a group's unit), so a division chief shows at the division, not in every branch; a switch hides or shows the people. Search, collapse, zoom and pan |
 | Directory | Everyone can browse the whole tree and the people in it, with contact details |
 | Workspace | Each person sees only the units and folders their roles reach, plus recent pages, their groups, and pages shared with them |
 | Access | Roles (viewer, contributor, editor, approver, admin) granted to people or groups on a unit, folder or page, inherited downward and additive |
@@ -19,8 +20,9 @@ covers phases 1 to 3 (foundation, live co-editing, review and notifications).
 | Code blocks | Syntax highlighting for about 35 languages, with a language picker in the toolbar |
 | Table formulas | Type `=` in a cell: `=SUM(B2:B5)`, `=AVERAGE(B2:B5)`, `MIN`, `MAX`, `COUNT`, `ROUND`, cell references and `+ - * /`. The table toolbar's Sum and Avg buttons total the column above the cursor |
 | Graphs | Bar, line and pie charts with their own data grid (Edit data) |
-| Sketch diagrams | Freehand boxes, arrows and shapes in Excalidraw, saved with an SVG picture |
-| Flowcharts | Diagrams written as Mermaid text (flowcharts, sequence diagrams, timelines), with templates and a live preview |
+| Drawing blocks | Table, Flowchart and Sketch are placed by hand: click the tool then drag a rectangle on the page, or drag the tool onto the page and size it. The text below moves down as you draw |
+| Sketch diagrams | Freehand boxes, arrows and shapes in Excalidraw, drawn right on the page (full screen is a button away), saved with an SVG picture |
+| Flowcharts | Drawn on the page: drag shapes from the palette, drag from a shape's edge dot to connect it, double-click to label. Older Mermaid-text flowcharts (and imported ```mermaid fences) keep their text editor; drawn ones export to Markdown as Mermaid |
 | Review | Where a folder (or a unit above it) requires approval, writers submit drafts for review. Approvers see every change since the published version marked up inline, accept or reject each one (rejecting undoes it in the draft, live), comment, approve the whole draft, or send it back with a note. Self-approval can be allowed per folder or per person |
 | Review settings | Right-click a unit or folder: require approval, allow self-approval. Inherited down the tree; the nearest setting wins |
 | Watching | Watch a unit, folder or page to hear about reviews and publishes |
