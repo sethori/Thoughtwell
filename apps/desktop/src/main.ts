@@ -3,14 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { app, BrowserWindow, clipboard, dialog, Menu, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, Menu, shell, type MenuItemConstructorOptions } from 'electron';
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { buildApp } from '../../api/src/app.js';
 import { loadConfig } from '../../api/src/config.js';
 import { createPool } from '../../api/src/db.js';
 import { migrate } from '../../api/src/migrate.js';
-import { seed } from '../../api/src/seed.js';
 import { EmbeddedPostgres, freePort } from './postgres.js';
 import { registerStatic } from './static.js';
 
@@ -37,7 +36,6 @@ interface Backend {
   pool: pg.Pool;
   api: FastifyInstance;
   url: string;
-  firstRun: { username: string; password: string } | null;
 }
 
 let backend: Backend | undefined;
@@ -69,22 +67,8 @@ async function startBackend(): Promise<Backend> {
 
   await migrate(postgres.ownerUrl, settings.appPassword, () => {}, join(resources, 'migrations'));
 
-  // First run on this machine: create the organization and an admin with a random password.
-  let firstRun: Backend['firstRun'] = null;
-  const owner = new pg.Client({ connectionString: postgres.ownerUrl });
-  await owner.connect();
-  const hasOrg = (await owner.query('SELECT 1 FROM orgs LIMIT 1')).rowCount;
-  await owner.end();
-  if (!hasOrg) {
-    const password = randomBytes(9).toString('base64url');
-    await seed(postgres.ownerUrl, {
-      orgName: 'My Organization',
-      admin: { username: 'admin', password, displayName: 'Administrator' },
-      placeholders: true,
-    });
-    firstRun = { username: 'admin', password };
-  }
-
+  // No organization yet? The window opens on a setup screen where the first
+  // person names the organization and creates their own admin account.
   const appUrl = `postgres://notes_app:${settings.appPassword}@127.0.0.1:${postgres.port}/notes`;
   const assets = join(dataDir, 'assets');
   mkdirSync(assets, { recursive: true });
@@ -95,6 +79,7 @@ async function startBackend(): Promise<Backend> {
     storageDir: assets,
     cookieSecure: false,
     logLevel: 'warn',
+    firstRunSetup: true,
   });
   const pool = createPool(config.appDatabaseUrl);
   const api = await buildApp({ config, pool });
@@ -108,7 +93,7 @@ async function startBackend(): Promise<Backend> {
     port = await freePort();
     await api.listen({ host: '127.0.0.1', port });
   }
-  return { postgres, pool, api, url: `http://127.0.0.1:${port}`, firstRun };
+  return { postgres, pool, api, url: `http://127.0.0.1:${port}` };
 }
 
 async function stopBackend(): Promise<void> {
@@ -139,17 +124,35 @@ async function smokeTest(b: Backend): Promise<void> {
   });
   if (bad.status !== 401) fail(`a wrong password returned ${bad.status}, expected 401`);
 
-  if (!b.firstRun) fail('no first-run admin was created');
+  // A fresh workspace asks for setup, and setup creates the admin and signs them in.
+  const status = (await (await fetch(`${b.url}/api/setup`)).json()) as { needed: boolean };
+  if (!status.needed) fail('a fresh workspace did not ask for first-run setup');
+  const account = { orgName: 'Smoke Test Org', displayName: 'Smoke Admin', username: 'smoke-admin', password: 'smoke-test-password' };
+  const created = await fetch(`${b.url}/api/setup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(account),
+  });
+  if (!created.ok) fail(`setup returned ${created.status}: ${await created.text()}`);
+  const again = await fetch(`${b.url}/api/setup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...account, username: 'second-admin' }),
+  });
+  if (again.status !== 409) fail(`a second setup returned ${again.status}, expected 409`);
+
   const login = await fetch(`${b.url}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: b.firstRun!.username, password: b.firstRun!.password }),
+    body: JSON.stringify({ username: account.username, password: account.password }),
   });
   if (!login.ok) fail(`sign-in returned ${login.status}: ${await login.text()}`);
   const cookie = login.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
 
   const me = await fetch(`${b.url}/api/me`, { headers: { Cookie: cookie } });
   if (!me.ok) fail(`/api/me returned ${me.status}: ${await me.text()}`);
+  const who = (await me.json()) as { user: { is_org_admin: boolean } };
+  if (!who.user.is_org_admin) fail('the account made at setup is not an admin');
   const anon = await fetch(`${b.url}/api/me`);
   if (anon.status !== 401) fail(`/api/me without a session returned ${anon.status}, expected 401`);
 }
@@ -186,7 +189,7 @@ async function resetData(): Promise<void> {
     defaultId: 0,
     cancelId: 0,
     message: 'Delete all test data?',
-    detail: 'This removes the local database and uploaded files, then starts fresh with a new admin password. It cannot be undone.',
+    detail: 'This removes the local database and uploaded files, then starts fresh and asks you to create a new admin account. It cannot be undone.',
   });
   if (answer.response !== 1) return;
   quitting = true;
@@ -273,17 +276,6 @@ async function main(): Promise<void> {
   const b = backend;
   await win!.loadURL(b.url);
   win!.setTitle('Thoughtwell (test build)');
-  if (b.firstRun) {
-    const { username, password } = b.firstRun;
-    const r = await dialog.showMessageBox(win!, {
-      type: 'info',
-      buttons: ['Copy password', 'OK'],
-      defaultId: 1,
-      message: 'Your test workspace is ready',
-      detail: `Sign in with:\n\nUsername: ${username}\nPassword: ${password}\n\nThis is shown once. Everything is stored on this computer. File > Reset test data starts over.`,
-    });
-    if (r.response === 0) clipboard.writeText(password);
-  }
 }
 
 main().catch((err) => {

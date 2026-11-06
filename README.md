@@ -150,10 +150,12 @@ app, and fails if any of that breaks.
 chmod +x Thoughtwell-0.1.0-x86_64.AppImage
 ./Thoughtwell-0.1.0-x86_64.AppImage
 ```
-On first launch it creates the organization, the placeholder tree and an `admin`
-account, and shows the generated password once (use **Copy password**). File >
-**Open data folder** shows where the data lives; File > **Reset test data**
-deletes it and starts over.
+On first launch it asks you to set up the workspace: name the organization and
+create your own account (name, username and a password of at least 8
+characters). That account is a full admin, and you are signed straight in. The
+placeholder org tree is created along with it. File > **Open data folder** shows
+where the data lives; File > **Reset test data** deletes it and asks you to set
+up again.
 
 Notes:
 - Built on Ubuntu 24.04, so it needs glibc 2.39 or newer (Ubuntu 24.04+, Debian 13+,

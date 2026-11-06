@@ -11,6 +11,12 @@ export interface Config {
   logLevel: string;
   /** Address people use to open the app, for links in email and Teams (e.g. https://notes.example.com). */
   publicUrl: string;
+  /**
+   * When there is no organization yet, let the first person to open the app
+   * create it and its admin account. The desktop test build turns this on;
+   * a server leaves it off and is seeded from the command line instead.
+   */
+  firstRunSetup: boolean;
 }
 
 function required(name: string): string {
@@ -30,8 +36,12 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     sessionDays: Number(process.env.SESSION_DAYS ?? 14),
     logLevel: process.env.LOG_LEVEL ?? 'info',
     publicUrl: (process.env.PUBLIC_URL ?? '').replace(/\/+$/, ''),
+    firstRunSetup: process.env.FIRST_RUN_SETUP === 'true',
     ...overrides,
   };
+  if (config.firstRunSetup && !config.ownerDatabaseUrl) {
+    throw new Error('FIRST_RUN_SETUP needs DATABASE_URL (the owner connection) to create the organization.');
+  }
   if (config.sessionSecret.length < 32) {
     throw new Error('SESSION_SECRET must be at least 32 characters.');
   }

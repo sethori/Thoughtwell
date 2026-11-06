@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { DUMMY_HASH, verifyPassword } from '../auth/password.js';
 import { hashToken, newSessionToken, SESSION_COOKIE } from '../auth/session.js';
@@ -13,7 +13,7 @@ const loginBody = z.object({
 });
 
 export async function authRoutes(app: FastifyInstance, deps: AppDeps) {
-  const { pool, config } = deps;
+  const { pool } = deps;
 
   app.post('/api/auth/login', { config: { public: true } }, async (req, reply) => {
     const body = parse(loginBody, req.body);
@@ -39,28 +39,7 @@ export async function authRoutes(app: FastifyInstance, deps: AppDeps) {
       throw unauthorized('Wrong username or password');
     }
 
-    const token = newSessionToken();
-    const expires = new Date(Date.now() + config.sessionDays * 86_400_000);
-    await withOrg(pool, found.org_id, async (db) => {
-      await db.query(
-        `INSERT INTO sessions (org_id, user_id, token_hash, expires_at, ip, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [found.org_id, found.id, hashToken(token), expires, req.ip, req.headers['user-agent'] ?? null],
-      );
-      await db.query(
-        `INSERT INTO audit_log (org_id, actor_id, actor_kind, action, resource_type, resource_id, ip)
-         VALUES ($1, $2, 'person', 'auth.login', 'user', $2, $3)`,
-        [found.org_id, found.id, req.ip],
-      );
-    });
-
-    reply.setCookie(SESSION_COOKIE, token, {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: config.cookieSecure,
-      expires,
-    });
+    await startSession(deps, req, reply, found.id, found.org_id);
     return { ok: true };
   });
 
@@ -70,5 +49,32 @@ export async function authRoutes(app: FastifyInstance, deps: AppDeps) {
     });
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
+  });
+}
+
+/** Signs someone in: stores a new session and sets its cookie. */
+export async function startSession(deps: AppDeps, req: FastifyRequest, reply: FastifyReply, userId: string, orgId: string) {
+  const { pool, config } = deps;
+  const token = newSessionToken();
+  const expires = new Date(Date.now() + config.sessionDays * 86_400_000);
+  await withOrg(pool, orgId, async (db) => {
+    await db.query(
+      `INSERT INTO sessions (org_id, user_id, token_hash, expires_at, ip, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [orgId, userId, hashToken(token), expires, req.ip, req.headers['user-agent'] ?? null],
+    );
+    await db.query(
+      `INSERT INTO audit_log (org_id, actor_id, actor_kind, action, resource_type, resource_id, ip)
+       VALUES ($1, $2, 'person', 'auth.login', 'user', $2, $3)`,
+      [orgId, userId, req.ip],
+    );
+  });
+
+  reply.setCookie(SESSION_COOKIE, token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.cookieSecure,
+    expires,
   });
 }

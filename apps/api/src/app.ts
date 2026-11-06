@@ -10,6 +10,7 @@ import { LocalStorage, type Storage } from './lib/storage.js';
 import { adminRoutes } from './routes/admin.js';
 import { assetRoutes } from './routes/assets.js';
 import { authRoutes } from './routes/auth.js';
+import { setupRoutes } from './routes/setup.js';
 import { directoryRoutes } from './routes/directory.js';
 import { folderRoutes } from './routes/folders.js';
 import { grantRoutes } from './routes/grants.js';
@@ -101,6 +102,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   await authRoutes(app, full);
+  await setupRoutes(app, full);
   await meRoutes(app);
   await directoryRoutes(app);
   await unitRoutes(app);

@@ -36,7 +36,11 @@ function withDb(url: string, db: string): string {
   return u.toString();
 }
 
-export async function setup(opts: { failEmail?: boolean } = {}): Promise<TestEnv> {
+/**
+ * `empty` leaves the database without an organization and turns on
+ * first-run setup, like the desktop build on its first launch.
+ */
+export async function setup(opts: { failEmail?: boolean; empty?: boolean } = {}): Promise<TestEnv> {
   const dbName = 'notes_test_' + randomBytes(4).toString('hex');
   const admin = new pg.Client({ connectionString: ADMIN_URL });
   await admin.connect();
@@ -45,11 +49,13 @@ export async function setup(opts: { failEmail?: boolean } = {}): Promise<TestEnv
 
   const ownerUrl = withDb(ADMIN_URL, dbName);
   await migrate(ownerUrl, APP_PASSWORD, () => {});
-  const seeded = await seed(ownerUrl, {
-    orgName: 'Test Org',
-    admin: { username: 'admin', password: 'admin-password', displayName: 'Admin' },
-    placeholders: true,
-  });
+  const seeded: SeedResult = opts.empty
+    ? { orgId: '', adminId: '', units: {} }
+    : await seed(ownerUrl, {
+        orgName: 'Test Org',
+        admin: { username: 'admin', password: 'admin-password', displayName: 'Admin' },
+        placeholders: true,
+      });
 
   const appUrlObj = new URL(ownerUrl);
   appUrlObj.username = 'notes_app';
@@ -63,6 +69,7 @@ export async function setup(opts: { failEmail?: boolean } = {}): Promise<TestEnv
     sessionSecret: 'x'.repeat(40),
     storageDir: await mkdtemp(join(tmpdir(), 'notes-assets-')),
     logLevel: 'silent',
+    firstRunSetup: Boolean(opts.empty),
   });
   const sent: TestEnv['sent'] = [];
   const senders: Senders = {
