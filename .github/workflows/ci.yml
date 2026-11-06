@@ -27,7 +27,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
       # Strict once pnpm-lock.yaml is committed after the first install.
       - run: pnpm install ${{ hashFiles('pnpm-lock.yaml') != '' && '--frozen-lockfile' || '' }}
       - run: pnpm typecheck

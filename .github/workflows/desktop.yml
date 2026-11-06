@@ -17,7 +17,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       # The AppImage ships this PostgreSQL build, so the runner's copy is what gets bundled.
       - name: Install PostgreSQL 16 and Electron's runtime libraries
