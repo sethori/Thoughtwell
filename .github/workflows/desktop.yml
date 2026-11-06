@@ -29,17 +29,17 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm desktop:package
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Thoughtwell-AppImage
+          path: apps/desktop/release/Thoughtwell-*.AppImage
+          if-no-files-found: error
+
       # Starts the real AppImage on a virtual display, creates a database, signs in
       # through the API and checks the web app is served. Fails the run if any of it breaks.
       - name: Smoke test the AppImage
         working-directory: apps/desktop/release
         run: |
           chmod +x Thoughtwell-*.AppImage
-          xvfb-run -a ./Thoughtwell-*.AppImage --appimage-extract-and-run --smoke 2>&1 | tee smoke.log
-          grep -q "SMOKE OK" smoke.log
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Thoughtwell-AppImage
-          path: apps/desktop/release/Thoughtwell-*.AppImage
-          if-no-files-found: error
+          xvfb-run -a ./Thoughtwell-*.AppImage --appimage-extract-and-run --no-sandbox --smoke 2>&1 | tee smoke.log
+          grep -q "SMOKE OK" smoke.log  # --no-sandbox is for the CI runner only; the AppImage you download runs normally
