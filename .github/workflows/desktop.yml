@@ -35,12 +35,12 @@ jobs:
       - name: Smoke test the AppImage
         working-directory: apps/desktop/release
         run: |
-          chmod +x NotesPlatform-*.AppImage
-          xvfb-run -a ./NotesPlatform-*.AppImage --appimage-extract-and-run --smoke 2>&1 | tee smoke.log
+          chmod +x Thoughtwell-*.AppImage
+          xvfb-run -a ./Thoughtwell-*.AppImage --appimage-extract-and-run --smoke 2>&1 | tee smoke.log
           grep -q "SMOKE OK" smoke.log
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NotesPlatform-AppImage
-          path: apps/desktop/release/NotesPlatform-*.AppImage
+          name: Thoughtwell-AppImage
+          path: apps/desktop/release/Thoughtwell-*.AppImage
           if-no-files-found: error

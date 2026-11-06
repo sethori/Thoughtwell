@@ -70,7 +70,7 @@ export const defaultSenders: Senders = {
     const res = await fetch(s.webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'notes-platform.notification', to: m.to, toName: m.toName, subject: m.subject, text: m.text, url: m.url }),
+      body: JSON.stringify({ type: 'thoughtwell.notification', to: m.to, toName: m.toName, subject: m.subject, text: m.text, url: m.url }),
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) throw new Error(`Teams workflow returned ${res.status}`);

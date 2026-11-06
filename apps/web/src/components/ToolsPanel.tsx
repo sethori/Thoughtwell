@@ -68,7 +68,7 @@ export function ToolsPanel({
 
   return (
     <aside className="right" aria-label="Note tools">
-      <div className="rhd">Note Studio</div>
+      <div className="rhd">Thoughtwell</div>
       <div className="rsub">{can ? 'Click a tool to insert it at the cursor' : pageId ? 'Read only' : 'Open a page to use the tools'}</div>
 
       {!reviewing && (

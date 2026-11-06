@@ -161,7 +161,7 @@ function showWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#0f1115',
-    title: 'Notes Platform (test build)',
+    title: 'Thoughtwell (test build)',
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   w.webContents.setWindowOpenHandler(({ url: target }) => {
@@ -249,7 +249,7 @@ async function main(): Promise<void> {
       app.exit(1);
       return;
     }
-    dialog.showErrorBox('Notes Platform could not start', message);
+    dialog.showErrorBox('Thoughtwell could not start', message);
     app.exit(1);
     return;
   }
@@ -272,7 +272,7 @@ async function main(): Promise<void> {
 
   const b = backend;
   await win!.loadURL(b.url);
-  win!.setTitle('Notes Platform (test build)');
+  win!.setTitle('Thoughtwell (test build)');
   if (b.firstRun) {
     const { username, password } = b.firstRun;
     const r = await dialog.showMessageBox(win!, {
@@ -288,6 +288,6 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error(err);
-  dialog.showErrorBox('Notes Platform could not start', (err as Error).message);
+  dialog.showErrorBox('Thoughtwell could not start', (err as Error).message);
   app.exit(1);
 });

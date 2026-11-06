@@ -1,10 +1,10 @@
 {
   "name": "@notes/desktop",
-  "productName": "Notes Platform",
+  "productName": "Thoughtwell",
   "version": "0.1.0",
   "private": true,
-  "description": "Self-contained desktop build of Notes Platform for testing: its own database, API and web app on one machine",
-  "author": "Notes Platform",
+  "description": "Self-contained desktop build of Thoughtwell for testing: its own database, API and web app on one machine",
+  "author": "Thoughtwell",
   "type": "module",
   "main": "dist/main.mjs",
   "scripts": {
@@ -24,8 +24,8 @@
     "typescript": "^5.7.0"
   },
   "build": {
-    "appId": "dev.notesplatform.desktop",
-    "productName": "Notes Platform",
+    "appId": "app.thoughtwell.desktop",
+    "productName": "Thoughtwell",
     "directories": { "output": "release" },
     "files": ["dist/**/*", "package.json"],
     "extraResources": [
@@ -36,7 +36,7 @@
     "linux": {
       "target": ["AppImage"],
       "category": "Office",
-      "artifactName": "NotesPlatform-${version}-${arch}.AppImage"
+      "artifactName": "Thoughtwell-${version}-${arch}.AppImage"
     }
   }
 }

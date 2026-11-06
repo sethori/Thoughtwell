@@ -1,4 +1,4 @@
-# Notes Platform
+# Thoughtwell
 
 A shared, multi-user notes platform. One organization holds a tree of
 directorates, divisions, branches, sections and projects. Each unit has its own
@@ -98,16 +98,16 @@ everything under `appdata`.
    missing, install the **Compose Manager** plugin from Community Applications.
 3. **Get the code** into a persistent folder:
    ```bash
-   mkdir -p /mnt/user/appdata/notes-platform && cd /mnt/user/appdata/notes-platform
-   git clone <your repo url> app    # or unzip notes-platform.zip here
+   mkdir -p /mnt/user/appdata/thoughtwell && cd /mnt/user/appdata/thoughtwell
+   git clone <your repo url> app    # or unzip thoughtwell.zip here
    cd app && cp .env.example .env
    ```
 4. **Edit `.env`:** set real passwords and a 32+ character `SESSION_SECRET`, then
    uncomment the data paths so Docker stores data on the cache pool, not in the
    Docker image file:
    ```
-   PGDATA_DIR=/mnt/cache/appdata/notes-platform/pgdata
-   ASSETS_DIR=/mnt/user/appdata/notes-platform/assets
+   PGDATA_DIR=/mnt/cache/appdata/thoughtwell/pgdata
+   ASSETS_DIR=/mnt/user/appdata/thoughtwell/assets
    ```
    Use `/mnt/cache/...` for the database, not `/mnt/user/...`: Postgres is slower
    and less reliable through Unraid's user-share layer. If you have no cache pool,
@@ -134,19 +134,19 @@ server on a schedule, for example with the CA Appdata Backup plugin or a User Sc
 
 A single-file Linux app that runs everything on one machine: its own PostgreSQL
 server, the API and the web app, with data stored under
-`~/.config/Notes Platform/data`. Nothing leaves the computer. It is for trying
+`~/.config/Thoughtwell/data`. Nothing leaves the computer. It is for trying
 the app, not for shared use.
 
 **Get it built.** Push this repo to GitHub, open the **Actions** tab, choose
 **Desktop build** and **Run workflow**. When it finishes (about 10 minutes),
-download `NotesPlatform-AppImage` from the run's Artifacts and unzip it. The run
+download `Thoughtwell-AppImage` from the run's Artifacts and unzip it. The run
 also starts the finished AppImage, creates a database, signs in and loads the web
 app, and fails if any of that breaks.
 
 **Run it:**
 ```bash
-chmod +x NotesPlatform-0.1.0-x86_64.AppImage
-./NotesPlatform-0.1.0-x86_64.AppImage
+chmod +x Thoughtwell-0.1.0-x86_64.AppImage
+./Thoughtwell-0.1.0-x86_64.AppImage
 ```
 On first launch it creates the organization, the placeholder tree and an `admin`
 account, and shows the generated password once (use **Copy password**). File >
