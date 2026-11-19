@@ -8,16 +8,12 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "test": "echo \"web: covered by e2e (pnpm test:e2e)\"",
-    "test:e2e": "playwright test"
+    "test": "echo \"web: covered by shared/vault unit tests and the desktop smoke test\""
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
-    "@hocuspocus/provider": "^2.15.3",
     "@notes/shared": "workspace:*",
     "@tiptap/extension-code-block-lowlight": "^2.11.0",
-    "@tiptap/extension-collaboration": "^2.11.0",
-    "@tiptap/extension-collaboration-cursor": "^2.11.0",
     "@tiptap/extension-image": "^2.11.0",
     "@tiptap/extension-link": "^2.11.0",
     "@tiptap/extension-placeholder": "^2.11.0",
@@ -31,15 +27,11 @@
     "@tiptap/react": "^2.11.0",
     "@tiptap/starter-kit": "^2.11.0",
     "lowlight": "^3.3.0",
-    "marked": "^15.0.0",
     "mermaid": "^11.4.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "y-prosemirror": "^1.2.15",
-    "yjs": "^13.6.20"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",

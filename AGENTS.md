@@ -1,40 +1,37 @@
 # Thoughtwell: agent guide
 
 ## What this project is
-Thoughtwell is a self-hosted, multi-user notes platform for personal and family use. An org tree of units holds people, groups and folders. Roles are inherited down the tree. Pages support live co-editing, review/approval and email/Teams notifications. It runs with Docker Compose on a home server or Unraid behind nginx. A Linux AppImage (with bundled Postgres) is for trying it on one machine. Roadmap: Entra ID sign-in, directory sync, search, audit export, AI assistant. README.md has the full feature list and deploy guide.
+Thoughtwell is a local-first desktop second brain (Electron, Linux AppImage). A vault is a plain folder of Markdown files: `Me/` holds the owner's notes, and `Brain/` is where their AI agents ingest material (`Inbox/` → `Sources/`, `Summaries/`, `Topics/`, `Log.md`). The vault's own `AGENTS.md` (template in `packages/vault/src/templates.ts`) tells those agents the rules. There is no server: sync and multi-user support are a later, optional backend. README.md has the features and the note format.
 
 ```
-apps/api            Fastify + TypeScript API; src/routes, services, auth, collab (Hocuspocus/Yjs)
-apps/api/migrations Numbered SQL schema, row-level security, permission functions; grants.sql re-run every migrate
-apps/web            React + Vite + TipTap editor; e2e/ holds Playwright tests
-apps/desktop        Electron AppImage: own Postgres (src/postgres.ts), API and web in one process
-packages/shared     Roles, tree rules, theme math, Markdown export, formulas, review diff (used by api and web)
+apps/desktop     Electron main: VaultService, IPC handlers (main.ts), preload bridge, app:// + vault:// (protocols.ts), --smoke test
+apps/web         React + Vite + TipTap UI; reaches disk only via window.thoughtwell (lib/vault.ts)
+packages/vault   Folder access (safe paths, atomic writes, import, attachments), search index, chokidar watcher; tests
+packages/shared  Markdown <-> editor JSON (markdown.ts, parse.ts), frontmatter, vault layout, bridge types, formulas, charts, theme
 scripts/version.py  Release version from git tags (next / latest / stamp) + test_version.py
-deploy.sh           Server update: pull, build, back up db + assets, migrate, restart, health check
 ```
 
 ## Build, run, test
 ```bash
 pnpm install                      # Node 22, pnpm 10
-cp .env.example .env              # never commit .env
-pnpm db:migrate && pnpm db:seed   # local Postgres 16
-pnpm dev                          # API :3000, web :5173
+pnpm dev                          # Vite :5173 + Electron window
 pnpm typecheck
-TEST_DATABASE_ADMIN_URL=postgres://postgres:postgres@localhost:5432/postgres pnpm test   # also runs version tests
-pnpm test:e2e                     # with the app running
-pnpm desktop:package              # needs postgresql-16 installed; output in apps/desktop/release
+pnpm test                         # shared + vault unit tests, version tests
+pnpm desktop:package              # AppImage in apps/desktop/release
+THOUGHTWELL_RESOURCES=<dir containing web/> electron apps/desktop --smoke   # end-to-end check, throwaway vault
 ```
-Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `apps/desktop/resources/pg`, `data/`, `backups/`, `coverage/`, `playwright-report/`, `test-results/`, `.env`.
+Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `apps/desktop/resources/`, `coverage/`, `.env`.
 
 ## Things every agent must know
-- **Security lives in Postgres.** The API connects as `notes_app`, which owns no tables, so RLS applies to every query. You must not grant it ownership, `BYPASSRLS`, or rights to read password hashes, delete people, edit the audit log or delete published versions. Permission checks go through the SQL functions `effective_role` and `accessible_folders`. Don't reimplement them in TypeScript.
-- **Migrations run once each.** You must never edit an applied `NNN_*.sql` file, because deployed databases won't re-run it. Add a new numbered file instead. Privilege changes go in `grants.sql`.
-- **Real data lives on the home server.** Never run `deploy.sh`, `pg_restore --clean`, or anything against the server or its `backups/` without explicit approval. `deploy.sh` prunes backups beyond 14.
-- **Desktop "Reset test data"** recursively deletes `~/.config/Thoughtwell/data`. Keep it behind its confirmation dialog.
-- **Secrets:** SMTP passwords and Teams webhook URLs are stored in the database. `SESSION_SECRET` and DB passwords live in `.env`. Never log, commit or echo them.
-- API tests create a throwaway database per run. They need a Postgres admin URL and never touch the real DB.
+- **The vault is the user's real data.** Never run the app, tests or scripts against their vault (default `~/Thoughtwell`). Tests and `--smoke` use temp folders. Deleting goes to the system trash (`shell.trashItem`), never `rm`.
+- **Markdown is the storage format, not an export.** Every editor node needs a Markdown form in `markdown.ts` and a parse in `parse.ts`, and must round-trip (add a test in `packages/shared/test/markdown.test.ts`). Unknown content becomes `rawMarkdown` and is written back verbatim. A note is only written when the user edits it.
+- **All disk access goes through `Vault`** (`resolve()` blocks `..` and symlink escapes), and the web app reaches it only via the bridge (`packages/shared/src/bridge.ts`, `CALLS`). Add a call in all three places: bridge type, `CALLS`, handler in `main.ts`.
+- Writes are atomic and carry `expectedMtime`. A `conflict` means someone (often an agent) changed the file. Don't overwrite silently.
+- Errors cross `contextBridge` as `[code] message`. Use `errorCode`/`errorText` in the web app.
+- `vault://` serves HTML/JS as text and sandboxes everything except PDFs. Keep it that way: agents save untrusted web content.
+- Don't change the vault layout or AGENTS.md template rules lightly. Existing vaults and the user's agents depend on them, and the template is only written when missing.
 - `pnpm-lock.yaml` isn't committed yet, so CI installs unpinned versions.
-- Say clearly what was and wasn't tested for real (unit tests vs. a running app vs. CI vs. a real deploy).
+- Say clearly what was and wasn't tested for real (unit tests vs. the smoke test vs. a person using the app vs. CI).
 
 ## Versioning and releases
 - Versions are `MAJOR.MINOR.PATCH`, and each part counts 0-9 before rolling over: `1.0.9 → 1.1.0`, `1.9.9 → 2.0.0`. The first release is `1.0.1`.
@@ -42,12 +39,13 @@ Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `app
 - `.github/workflows/build.yml` runs typecheck, tests, the web build and the AppImage build plus smoke test on every push and PR. On `main` it also runs `scripts/version.py next`, then `stamp`, then publishes GitHub release `vX.Y.Z` with the AppImage and `SHA256SUMS`. The release notes are the commit subjects since the previous tag. Runs on the same ref are serialized (`concurrency: build-<ref>`). A waiting run can be superseded by a newer push, and the next release then includes its commits.
 
 ## Milestones
-- 2026-11-05: Phase 1 foundation (org tree, access, pages, deploy). Then Unraid support, desktop AppImage and table formulas, and phases 2-3 (live co-editing, review, notifications, diagrams). Renamed to Thoughtwell.
+- 2026-11-05: Phase 1 multi-user server (org tree, roles, review, co-editing, notifications). Renamed to Thoughtwell.
 - 2026-11-19: Automatic versioning and GitHub releases set up. The first release will be 1.0.1.
+- 2026-11-19: Pivot to local-first. Server, Postgres and Docker deploy removed; Markdown vault with Me/ and Brain/ areas for AI agents.
 
 ## Known open issues
 - `pnpm-lock.yaml` isn't committed yet, so builds aren't reproducible.
-- Entra ID sign-in, directory sync, search, audit export and the AI assistant are still to come. The assistant button is a placeholder.
+- Still to come: optional sync/multi-user backend, an MCP server for agents, a built-in agent runner, `[[` link autocomplete, macOS/Windows builds.
 - The AppImage needs glibc 2.39+ and FUSE 2, and it can't run as root.
 
 ## How to work here (owner preferences)

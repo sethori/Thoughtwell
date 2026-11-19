@@ -2,20 +2,17 @@
   "name": "thoughtwell",
   "private": true,
   "version": "0.0.0",
-  "description": "Shared, multi-user notes platform with hierarchical tenancy and review workflows",
+  "description": "Local-first second brain: your notes and your AI agents' notes, as Markdown files on your computer",
   "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @notes/api --filter @notes/web dev",
+    "dev": "pnpm --parallel --filter @notes/web --filter @notes/desktop dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test && pnpm test:version",
     "test:version": "python3 -m unittest discover -s scripts -p 'test_*.py'",
-    "test:e2e": "pnpm --filter @notes/web test:e2e",
-    "db:migrate": "pnpm --filter @notes/api db:migrate",
-    "db:seed": "pnpm --filter @notes/api db:seed",
     "desktop:package": "pnpm --filter @notes/desktop package"
   }
 }

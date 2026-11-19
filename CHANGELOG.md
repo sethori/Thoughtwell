@@ -9,6 +9,29 @@ included those changes.
 
 ## Unreleased
 
+### Changed
+- Thoughtwell is now local-first: a desktop app that keeps your notes as Markdown files in a
+  folder you choose (default `~/Thoughtwell`), with no server, database or account.
+- The vault has two areas: **Me** for your notes, and **Brain** for your AI agents to ingest,
+  summarize and organize (Inbox, Sources, Summaries, Topics, Log). A generated `AGENTS.md`
+  tells agents such as Claude Code the rules, including never changing Me/.
+- Charts, sketches and diagrams are saved in Markdown (```` ```chart ````, `.excalidraw.svg`
+  images, ```` ```mermaid ````), so agents and other Markdown tools can read them.
+
+### Added
+- File tree per area: create, rename, drag to move, drop files in to import, move to trash.
+- Viewers for PDFs, video, audio, images and text files.
+- "From your Brain": agent notes related to the note you are writing, plus backlinks.
+- Search across all notes and file names (Ctrl+K), wikilinks (`[[Note name]]`), and a
+  properties row for agent notes (type, author, source, tags, summary).
+- Live updates when agents or other tools change files, with a warning instead of an
+  overwrite if a note you are editing changed on disk.
+
+### Removed
+- The multi-user server: sign-in, org tree, roles, review and approval, live co-editing,
+  email and Teams notifications, Docker/Unraid deploy and the bundled PostgreSQL. A sync
+  backend is planned for later.
+
 ## 2026-11-19 (from 1.0.1)
 
 ### Added

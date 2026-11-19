@@ -7,7 +7,7 @@ import { dataAttr } from './attrs';
 
 const TYPE_LABEL: Record<ChartType, string> = { bar: 'Bar', line: 'Line', pie: 'Pie' };
 
-/** A graph block. Its data lives on the block, so drafts, versions and review all carry it. */
+/** A graph block. Its data is saved in the note as a ```chart fence holding JSON. */
 export const ChartBlock = Node.create({
   name: 'chart',
   group: 'block',

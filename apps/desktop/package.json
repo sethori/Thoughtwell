@@ -3,38 +3,45 @@
   "productName": "Thoughtwell",
   "version": "0.0.0",
   "private": true,
-  "description": "Self-contained desktop build of Thoughtwell for testing: its own database, API and web app on one machine",
+  "description": "Thoughtwell desktop app: a local-first second brain stored as Markdown files",
   "author": "Thoughtwell",
   "type": "module",
   "main": "dist/main.mjs",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "bundle": "node scripts/build.mjs",
-    "package": "pnpm --filter @notes/web build && bash scripts/prepare-postgres.sh && node scripts/build.mjs && electron-builder --linux AppImage"
+    "dev": "node scripts/build.mjs && THOUGHTWELL_DEV_URL=http://localhost:5173 THOUGHTWELL_RESOURCES=. electron .",
+    "package": "pnpm --filter @notes/web build && node scripts/build.mjs && electron-builder --linux AppImage"
   },
   "devDependencies": {
     "@notes/shared": "workspace:*",
+    "@notes/vault": "workspace:*",
     "@types/node": "^22.10.0",
-    "@types/pg": "^8.11.0",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.24.0",
-    "fastify": "^5.2.0",
-    "pg": "^8.13.0",
     "typescript": "^5.7.0"
   },
   "build": {
     "appId": "app.thoughtwell.desktop",
     "productName": "Thoughtwell",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "package.json"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
     "extraResources": [
-      { "from": "resources/pg", "to": "pg" },
-      { "from": "../web/dist", "to": "web" },
-      { "from": "../api/migrations", "to": "migrations" }
+      {
+        "from": "../web/dist",
+        "to": "web"
+      }
     ],
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "category": "Office",
       "artifactName": "Thoughtwell-${version}-${arch}.AppImage"
     }

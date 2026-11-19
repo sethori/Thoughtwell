@@ -1,176 +1,202 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, type Directory, type Me, type Workspace } from './lib/api';
-import { applyTheme } from './lib/theme';
-import { Login } from './components/Login';
-import { Rail, type RailView } from './components/Rail';
-import { Library } from './components/Library';
-import { PageView } from './components/PageView';
-import { ToolsPanel } from './components/ToolsPanel';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { areaOf, BRAIN_DIRS, dirname, ME, type Area, type Entry, type Preferences } from '@notes/shared';
+import { hasBridge, tw, type VaultInfo } from './lib/vault';
+import { applyTheme, keep, loadPreferences, remember, savePreferences } from './lib/theme';
+import { Rail } from './components/Rail';
+import { Sidebar } from './components/Sidebar';
+import { NoteView } from './components/NoteView';
+import { FileView } from './components/FileView';
+import { Home } from './components/Home';
+import { SearchDialog } from './components/SearchDialog';
 import { SettingsDialog } from './components/SettingsDialog';
-import { PeopleDialog } from './components/PeopleDialog';
-import { ReviewInbox } from './components/ReviewInbox';
-import { NotificationsPanel } from './components/NotificationsPanel';
+import { PromptDialog } from './components/Dialog';
 
 export function App() {
-  const [me, setMe] = useState<Me | null>(null);
-  const [signedOut, setSignedOut] = useState(false);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [directory, setDirectory] = useState<Directory | null>(null);
-  const [view, setView] = useState<RailView>('notes');
-  const [pageId, setPageId] = useState<string | null>(() => new URLSearchParams(location.search).get('page'));
-  const [openReview, setOpenReview] = useState(false);
-  // Bumped whenever a page is opened from a list, so an already-open page reloads its review state.
-  const [openNonce, setOpenNonce] = useState(0);
+  const [prefs, setPrefs] = useState<Preferences>(loadPreferences);
+  const [info, setInfo] = useState<VaultInfo | null>(null);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [area, setArea] = useState<Area>(() => remember<Area>('area', 'me'));
+  const [path, setPath] = useState<string | null>(() => remember<string | null>('openPath', null));
+  const [changed, setChanged] = useState<{ paths: string[]; n: number }>({ paths: [], n: 0 });
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null);
-  const [unread, setUnread] = useState(0);
-  const [dialog, setDialog] = useState<'settings' | 'people' | 'reviews' | 'notifications' | null>(null);
+  const [dialog, setDialog] = useState<'search' | 'settings' | 'new-note' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const loadMe = useCallback(async () => {
-    try {
-      const m = await api.get<Me>('/api/me');
-      setMe(m);
-      setSignedOut(false);
-      applyTheme(m.user.preferences, m.org.branding.scheme);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) setSignedOut(true);
-      else throw err;
-    }
-  }, []);
+  useEffect(() => applyTheme(prefs), [prefs]);
 
-  const refresh = useCallback(async () => {
-    const [w, d] = await Promise.all([api.get<Workspace>('/api/workspace'), api.get<Directory>('/api/directory')]);
-    setWorkspace(w);
-    setDirectory(d);
-  }, []);
+  const refresh = useCallback(async () => setEntries(await tw.list()), []);
 
   useEffect(() => {
-    void loadMe();
-  }, [loadMe]);
-  useEffect(() => {
-    if (me) void refresh();
-  }, [me, refresh]);
+    if (!hasBridge) return;
+    void tw.info().then(setInfo);
+    void refresh();
+    // Anything that changes the folder (you, an agent, a sync tool) refreshes the tree.
+    let t: number | undefined;
+    return tw.onChange((paths) => {
+      setChanged((c) => ({ paths, n: c.n + 1 }));
+      window.clearTimeout(t);
+      t = window.setTimeout(() => void refresh(), 100);
+    });
+  }, [refresh]);
 
-  // Keep the open page in the address bar, so a link or refresh returns to it.
-  useEffect(() => {
-    const url = new URL(location.href);
-    if (pageId) url.searchParams.set('page', pageId);
-    else url.searchParams.delete('page');
-    history.replaceState(null, '', url);
-  }, [pageId]);
-
-  // The bell's count, refreshed every minute and when the window comes back into focus.
-  const loadUnread = useCallback(() => {
-    void api
-      .get<{ unread: number }>('/api/notifications/unread')
-      .then((r) => setUnread(r.unread))
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    if (!me) return;
-    loadUnread();
-    const t = setInterval(loadUnread, 60_000);
-    window.addEventListener('focus', loadUnread);
-    return () => {
-      clearInterval(t);
-      window.removeEventListener('focus', loadUnread);
-    };
-  }, [me, loadUnread]);
-
-  const openPage = useCallback((id: string, review = false) => {
-    setOpenReview(review);
-    setOpenNonce((n) => n + 1);
-    setPageId(id);
-  }, []);
-
+  const notify = useCallback((msg: string) => setToast(msg), []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
 
-  const notify = useCallback((msg: string) => setToast(msg), []);
+  const open = useCallback((p: string | null) => {
+    setPath(p);
+    keep('openPath', p);
+    const a = p ? areaOf(p) : null;
+    if (a) {
+      setArea(a);
+      keep('area', a);
+    }
+  }, []);
 
-  if (signedOut) return <Login onSignedIn={loadMe} />;
-  if (!me) return null;
+  const entry = useMemo(() => entries.find((e) => e.path === path) ?? null, [entries, path]);
+  const inbox = useMemo(() => entries.filter((e) => dirname(e.path) === BRAIN_DIRS.inbox).length, [entries]);
 
+  // A path not in the tree yet (just created) or any more (deleted): list again once before giving up on it.
+  const recheck = useRef<string | null>(null);
+  useEffect(() => {
+    if (!path || entry || !entries.length) return;
+    if (recheck.current === path) {
+      recheck.current = null;
+      open(null);
+    } else {
+      recheck.current = path;
+      void refresh();
+    }
+  }, [path, entries, entry, open, refresh]);
 
+  useEffect(() => {
+    if (!hasBridge) return;
+    return tw.onCommand((cmd) => {
+      if (cmd === 'search') setDialog('search');
+      else if (cmd === 'new-note') setDialog('new-note');
+      else if (cmd === 'import') void tw.pickAndImport(BRAIN_DIRS.inbox).then((a) => a.length && notify(`Added ${a.length} to the inbox`));
+    });
+  }, [notify]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setDialog('search');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    // Files dropped outside a drop zone must not replace the app.
+    const stop = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', stop);
+    window.addEventListener('drop', stop);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('dragover', stop);
+      window.removeEventListener('drop', stop);
+    };
+  }, []);
+
+  if (!hasBridge) {
+    return (
+      <div className="stage">
+        <div className="welcome">
+          <h2>Thoughtwell runs as a desktop app</h2>
+          <p>Start it with pnpm dev (which opens the desktop window), or install the AppImage.</p>
+        </div>
+      </div>
+    );
+  }
+  if (!info) return null;
+
+  const isNote = entry?.kind === 'note';
   return (
-    <div className="app">
+    <div className="app" data-app-ready>
       <Rail
-        me={me}
-        view={view}
-        unread={unread}
-        onView={(v) => {
-          if (v === 'settings') setDialog('settings');
-          else if (v === 'people') setDialog('people');
-          else if (v === 'review') setDialog('reviews');
-          else if (v === 'notifications') setDialog('notifications');
-          else if (v === 'ai') notify('The AI assistant is coming in a later phase.');
-          else setView(v);
+        area={area}
+        inbox={inbox}
+        onArea={(a) => {
+          setArea(a);
+          keep('area', a);
+          if (path && areaOf(path) !== a) open(null);
         }}
-        onSignOut={async () => {
-          await api.post('/api/auth/logout');
-          setMe(null);
-          setSignedOut(true);
-        }}
+        onSearch={() => setDialog('search')}
+        onSettings={() => setDialog('settings')}
       />
-      <Library
-        me={me}
-        view={view === 'directory' ? 'directory' : 'workspace'}
-        onViewChange={(v) => setView(v === 'directory' ? 'directory' : 'notes')}
-        workspace={workspace}
-        directory={directory}
-        selectedPageId={pageId}
-        onOpenPage={(id) => openPage(id)}
-        onChanged={refresh}
+      <Sidebar
+        area={area}
+        entries={entries}
+        selected={path}
+        onOpen={open}
+        onMoved={(from, to) => {
+          if (path === from) open(to);
+          else if (path?.startsWith(from + '/')) open(to + path.slice(from.length));
+          void refresh();
+        }}
+        onSearch={() => setDialog('search')}
         notify={notify}
       />
       <main className="center">
-        {pageId ? (
-          <PageView
-            key={pageId}
-            pageId={pageId}
-            me={me}
+        {entry && isNote ? (
+          <NoteView
+            key={entry.path}
+            path={entry.path}
+            changed={changed}
             rightSlot={rightSlot}
-            openReview={openReview}
-            openNonce={openNonce}
-            onSaved={refresh}
+            onOpen={open}
+            onRenamed={(p) => {
+              open(p);
+              void refresh();
+            }}
             onClosed={() => {
-              setPageId(null);
+              open(null);
+              void refresh();
+            }}
+            notify={notify}
+          />
+        ) : entry && entry.kind !== 'dir' ? (
+          <FileView
+            key={entry.path}
+            entry={entry}
+            rightSlot={rightSlot}
+            onOpen={open}
+            onClosed={() => {
+              open(null);
               void refresh();
             }}
             notify={notify}
           />
         ) : (
-          <div className="stage">
-            <div className="welcome">
-              <h2>Welcome, {me.user.display_name}</h2>
-              <p>Open a page from the library, or right-click a folder to create one.</p>
-            </div>
-          </div>
+          <Home area={area} entries={entries} info={info} onOpen={open} notify={notify} />
         )}
       </main>
-      {/* The open page puts its own tools panel here. */}
-      <div className="right-slot" ref={setRightSlot}>
-        {!pageId && <ToolsPanel editor={null} pageId={null} notify={notify} />}
-      </div>
+      {/* The open note or file puts its own panel here. */}
+      <div className="right-slot" ref={setRightSlot} />
 
+      {dialog === 'search' && <SearchDialog onOpen={open} onClose={() => setDialog(null)} />}
       {dialog === 'settings' && (
         <SettingsDialog
-          me={me}
-          onClose={() => setDialog(null)}
-          onChanged={async () => {
-            await loadMe();
+          prefs={prefs}
+          info={info}
+          onChange={(p) => {
+            setPrefs(p);
+            savePreferences(p);
           }}
+          onClose={() => setDialog(null)}
         />
       )}
-      {dialog === 'people' && directory && (
-        <PeopleDialog me={me} directory={directory} onClose={() => setDialog(null)} onChanged={refresh} />
-      )}
-      {dialog === 'reviews' && <ReviewInbox onOpen={(id) => openPage(id, true)} onClose={() => setDialog(null)} />}
-      {dialog === 'notifications' && (
-        <NotificationsPanel onOpen={(id, review) => openPage(id, review)} onRead={loadUnread} onClose={() => setDialog(null)} />
+      {dialog === 'new-note' && (
+        <PromptDialog
+          title="New note"
+          label="Name"
+          sub={`In ${area === 'brain' ? BRAIN_DIRS.topics : ME}`}
+          confirm="Create"
+          onClose={() => setDialog(null)}
+          onSubmit={async (title) => open(await tw.createNote(area === 'brain' ? BRAIN_DIRS.topics : ME, title, `# ${title}\n\n`))}
+        />
       )}
       {toast && (
         <div className="toast" role="status">

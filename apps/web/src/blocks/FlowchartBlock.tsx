@@ -25,11 +25,15 @@ export const FLOWCHART_TEMPLATES: Record<string, string> = {
   Build       :after a1, 20d
   section Launch
   Testing     :2026-02-05, 7d`,
-  'Org chart': `flowchart TD
-  Org[Organization] --> D1[Directorate 1]
-  D1 --> DivA[Division A]
-  DivA --> B1[Branch A1]
-  B1 --> S1[Section 1]`,
+  'Mind map': `mindmap
+  root((Idea))
+    Why
+      Problem it solves
+    How
+      First step
+      Open questions
+    Related
+      Notes in my Brain`,
 };
 
 /** A diagram written as Mermaid text: flowcharts, sequence diagrams, timelines and more. */

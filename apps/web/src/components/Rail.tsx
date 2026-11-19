@@ -1,39 +1,9 @@
-import type { Me } from '../lib/api';
+import type { Area } from '@notes/shared';
 import { Icon, type IconName } from './Icon';
 
-export type RailView = 'notes' | 'directory' | 'review' | 'people' | 'settings' | 'notifications' | 'ai';
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-export function Rail({
-  me,
-  view,
-  unread = 0,
-  onView,
-  onSignOut,
-}: {
-  me: Me;
-  view: RailView;
-  unread?: number;
-  onView: (v: RailView) => void;
-  onSignOut: () => void;
-}) {
-  const btn = (v: RailView, icon: IconName, label: string, extra = '', badge = 0) => (
-    <button
-      type="button"
-      className={`rb ${view === v ? 'on' : ''} ${extra}`}
-      aria-label={badge ? `${label}, ${badge} unread` : label}
-      title={label}
-      aria-pressed={view === v}
-      onClick={() => onView(v)}
-    >
+export function Rail({ area, inbox, onArea, onSearch, onSettings }: { area: Area; inbox: number; onArea: (a: Area) => void; onSearch: () => void; onSettings: () => void }) {
+  const btn = (on: boolean, icon: IconName, label: string, run: () => void, badge = 0) => (
+    <button type="button" className={`rb ${on ? 'on' : ''}`} aria-label={badge ? `${label}, ${badge} in the inbox` : label} title={label} aria-pressed={on} onClick={run}>
       <Icon name={icon} />
       {badge > 0 && <span className="badge">{badge > 99 ? '99+' : badge}</span>}
     </button>
@@ -43,22 +13,11 @@ export function Rail({
       <div className="logo" aria-hidden="true">
         <Icon name="note" />
       </div>
-      {btn('notes', 'note', 'Notes')}
-      {btn('directory', 'org', 'Org directory')}
-      {btn('review', 'review', 'Review inbox')}
-      {me.user.is_org_admin && btn('people', 'people', 'People')}
+      {btn(area === 'me', 'user', 'Me: your notes', () => onArea('me'))}
+      {btn(area === 'brain', 'sparkle', 'Brain: your agents’ area', () => onArea('brain'), inbox)}
+      {btn(false, 'search', 'Search (Ctrl+K)', onSearch)}
       <div className="spacer" />
-      {btn('settings', 'settings', 'Settings and appearance')}
-      {btn('notifications', 'bell', 'Notifications', '', unread)}
-      {btn('ai', 'sparkle', 'AI assistant', 'ai')}
-      <button type="button" className="rb" aria-label="Sign out" title="Sign out" onClick={onSignOut}>
-        <Icon name="logout" />
-      </button>
-      <div className="avatar" role="img" aria-label={`Signed in as ${me.user.display_name}`} title={me.user.display_name}>
-        {initials(me.user.display_name)}
-      </div>
+      {btn(false, 'settings', 'Settings', onSettings)}
     </nav>
   );
 }
-
-export { initials };

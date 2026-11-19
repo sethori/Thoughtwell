@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { errorText } from '../lib/vault';
 
 export function Dialog({
   title,
@@ -83,7 +84,7 @@ export function PromptDialog({
             await onSubmit(value.trim());
             onClose();
           } catch (err) {
-            setError((err as Error).message);
+            setError(errorText(err));
             setBusy(false);
           }
         }}
@@ -141,7 +142,7 @@ export function ConfirmDialog({
               await onConfirm();
               onClose();
             } catch (err) {
-              setError((err as Error).message);
+              setError(errorText(err));
             }
           }}
         >
