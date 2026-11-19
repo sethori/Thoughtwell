@@ -30,7 +30,7 @@ Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `app
 - Errors cross `contextBridge` as `[code] message`. Use `errorCode`/`errorText` in the web app.
 - `vault://` serves HTML/JS as text and sandboxes everything except PDFs. Keep it that way: agents save untrusted web content.
 - Don't change the vault layout or AGENTS.md template rules lightly. Existing vaults and the user's agents depend on them, and the template is only written when missing.
-- `pnpm-lock.yaml` isn't committed yet, so CI installs unpinned versions.
+- `pnpm-lock.yaml` is committed; CI installs with `--frozen-lockfile`. Commit lockfile changes with the dependency change.
 - Say clearly what was and wasn't tested for real (unit tests vs. the smoke test vs. a person using the app vs. CI).
 
 ## Versioning and releases
@@ -44,7 +44,6 @@ Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `app
 - 2026-11-19: Pivot to local-first. Server, Postgres and Docker deploy removed; Markdown vault with Me/ and Brain/ areas for AI agents.
 
 ## Known open issues
-- `pnpm-lock.yaml` isn't committed yet, so builds aren't reproducible.
 - Still to come: optional sync/multi-user backend, an MCP server for agents, a built-in agent runner, `[[` link autocomplete, macOS/Windows builds.
 - The AppImage needs glibc 2.39+ and FUSE 2, and it can't run as root.
 
