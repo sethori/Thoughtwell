@@ -48,6 +48,34 @@ frontmatter, link it into topic notes, and log the work. Thoughtwell picks up
 every change the moment it's written: the tree, search and the related-notes
 panel update, and an open note reloads, or warns you if you are editing it.
 
+### Connecting agents over MCP
+
+Thoughtwell is also an [MCP](https://modelcontextprotocol.io) server, so agents
+get proper tools instead of raw file access, and the vault's rules are enforced:
+**agents can read anything, write only inside `Brain/`, and delete nothing.**
+The AppImage is the server; it serves the vault the app last opened, with no
+window. Add it to Claude Code once (the Brain home screen has this command,
+with your real path, ready to copy):
+
+```bash
+claude mcp add --scope user thoughtwell -- /path/to/Thoughtwell.AppImage --mcp --ozone-platform=headless
+```
+
+For other agents, the same command goes in their MCP config
+(`{"mcpServers": {"thoughtwell": {"command": "/path/to/Thoughtwell.AppImage", "args": ["--mcp", "--ozone-platform=headless"]}}}`).
+`--vault <folder>` picks another vault. Then ask the agent to "process my
+Thoughtwell inbox", or use its `process_inbox` prompt.
+
+| Tool | What it does |
+| --- | --- |
+| `vault_overview` | Layout, what's waiting in the inbox, note counts, tags in use |
+| `owner_interests` | Your most-used tags, the themes and titles of your recent Me/ notes |
+| `search`, `related`, `backlinks` | Search the vault, find related notes, see what links to a note |
+| `list_files`, `read_note`, `file_info` | Browse, read notes, and get a file's location on disk (for PDF text extraction or transcription) |
+| `move_to_sources` | Move a processed inbox item to Sources/ (never replacing a file) |
+| `save_summary` | Write a summary with standard frontmatter, link it from topic notes, and log it |
+| `add_to_topic`, `write_note`, `append_log` | Extend topic notes, write other Brain/ notes (refused if the file changed since read), log work |
+
 ### Note format
 
 GitHub-flavored Markdown with optional YAML frontmatter (`title`, `type`,
@@ -85,6 +113,7 @@ until you click **Edit**.
 ```
 apps/desktop     Electron: vault service, IPC bridge (preload), app:// and vault:// protocols, smoke test
 apps/web         React + Vite + TipTap editor (the window's UI)
+packages/mcp     MCP server for agents (tools over the vault; Brain/-only writes), stdio CLI
 packages/vault   The folder: safe paths, atomic writes, import, search index, file watcher, AGENTS.md template
 packages/shared  Markdown <-> editor conversion, frontmatter, vault layout, bridge types, formulas, charts, theme
 scripts/         Release versioning (version.py)
@@ -107,9 +136,12 @@ pnpm test         # shared + vault unit tests, version-script tests
 pnpm desktop:package   # AppImage in apps/desktop/release
 ```
 
-Smoke test (CI runs this on the AppImage): build, then
-`THOUGHTWELL_RESOURCES=<folder with web/> electron apps/desktop --smoke`.
-It uses a throwaway vault and settings folder.
+Smoke tests (CI runs both on the AppImage), each on a throwaway vault and settings folder:
+
+- App: build, then `THOUGHTWELL_RESOURCES=<folder with web/> electron apps/desktop --smoke`.
+- MCP: `node apps/desktop/scripts/mcp-smoke.mjs <path to electron or the AppImage> [args]`.
+
+Run the MCP server from source with `pnpm --filter @notes/mcp start --vault <folder>`.
 
 ## Releases
 

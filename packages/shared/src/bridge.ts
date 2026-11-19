@@ -31,14 +31,17 @@ export interface VaultInfo {
   version: string;
   /** The app's own settings and logs folder (not the vault). */
   appData: string;
+  /** Command and arguments that start this app as an MCP server for agents. */
+  mcpCommand: string[];
 }
 
 export interface Bridge {
   info(): Promise<VaultInfo>;
   list(): Promise<Entry[]>;
-  read(path: string): Promise<{ content: string; mtime: number }>;
-  /** expectedMtime: refuse if the file changed since it was read (null to skip the check). */
-  write(path: string, content: string, expectedMtime: number | null): Promise<{ mtime: number }>;
+  /** version identifies this state of the file; pass it back to write. */
+  read(path: string): Promise<{ content: string; version: string }>;
+  /** expectedVersion: refuse if the file changed since it was read (null to skip the check). */
+  write(path: string, content: string, expectedVersion: string | null): Promise<{ version: string }>;
   createNote(dir: string, title: string, body?: string): Promise<string>;
   createFolder(dir: string, name: string): Promise<string>;
   move(from: string, to: string): Promise<string>;

@@ -26,6 +26,10 @@ included those changes.
   properties row for agent notes (type, author, source, tags, summary).
 - Live updates when agents or other tools change files, with a warning instead of an
   overwrite if a note you are editing changed on disk.
+- An MCP server for AI agents, built into the app (`Thoughtwell.AppImage --mcp`). Agents get
+  tools to search the vault, see what you have been writing about, file inbox items and
+  write summaries that link topics and log themselves. They can write only in Brain/, and
+  cannot delete anything. The Brain home screen shows the command to add it to Claude Code.
 
 ### Removed
 - The multi-user server: sign-in, org tree, roles, review and approval, live co-editing,

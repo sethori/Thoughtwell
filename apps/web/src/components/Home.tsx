@@ -19,6 +19,10 @@ export function Home({ area, entries, info, onOpen, notify }: { area: Area; entr
   );
   const inbox = entries.filter((e) => dirname(e.path) === BRAIN_DIRS.inbox);
   const command = `cd "${info.root}" && claude "${PROMPT}"`;
+  const q = (a: string) => (/^[\w./:=@-]+$/.test(a) ? a : `'${a.replace(/'/g, `'\\''`)}'`);
+  const [mcpCmd = '', ...mcpArgs] = info.mcpCommand;
+  const claudeAdd = `claude mcp add --scope user thoughtwell -- ${info.mcpCommand.map(q).join(' ')}`;
+  const mcpJson = JSON.stringify({ mcpServers: { thoughtwell: { command: mcpCmd, args: mcpArgs } } }, null, 2);
 
   return (
     <div className="stage">
@@ -51,7 +55,27 @@ export function Home({ area, entries, info, onOpen, notify }: { area: Area; entr
             <div className="card">
               <div className="card-h">
                 <Icon name="sparkle" small />
-                Point an agent at this vault
+                Connect an agent (MCP)
+              </div>
+              <p className="muted">
+                Thoughtwell is also an MCP server. Agents get tools to search the vault, read what you care about, file inbox items and write summaries, and
+                they can only write in Brain/. Add it to Claude Code once:
+              </p>
+              <code className="path">{claudeAdd}</code>
+              <div className="row">
+                <button type="button" className="btn" onClick={() => void tw.copyText(claudeAdd).then(() => notify('Command copied'))}>
+                  Copy for Claude Code
+                </button>
+                <button type="button" className="btn" onClick={() => void tw.copyText(mcpJson).then(() => notify('MCP config copied'))}>
+                  Copy JSON for other agents
+                </button>
+              </div>
+              <p className="muted">Then ask it to use the process_inbox prompt, or just to process your Thoughtwell inbox. If you move the app, add it again.</p>
+            </div>
+            <div className="card">
+              <div className="card-h">
+                <Icon name="folder" small />
+                Or point an agent at the folder
               </div>
               <p className="muted">
                 Any agent that can read and write files works. The vault's <b>{AGENTS_FILE}</b> tells it the rules: never touch Me/, keep originals, write summaries with sources and tags, and log its work.

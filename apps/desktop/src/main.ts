@@ -5,17 +5,21 @@ import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from 'electron';
 import { AREA_DIR, BRAIN_DIRS } from '@notes/shared';
 import { VaultError, VaultService } from '@notes/vault';
+import { findVault, runStdio } from '@notes/mcp';
 import { CALLS, type Bridge, type Call, type Reply } from './bridge';
 import { handleApp, handleVault, registerSchemes } from './protocols';
 
 // --smoke: start on a throwaway vault, check the app end to end, print SMOKE OK and exit.
 const SMOKE = process.argv.includes('--smoke');
+// --mcp: no window; serve the vault to an AI agent over MCP on stdin/stdout (see packages/mcp).
+const MCP = process.argv.includes('--mcp');
 const DEV_URL = process.env.THOUGHTWELL_DEV_URL;
 const here = dirname(fileURLToPath(import.meta.url));
 
 // AppImages cannot ship the SUID helper Chromium's sandbox wants.
 if (process.env.APPIMAGE || SMOKE) app.commandLine.appendSwitch('no-sandbox');
 if (SMOKE) app.setPath('userData', mkdtempSync(join(tmpdir(), 'thoughtwell-smoke-')));
+if (MCP) app.disableHardwareAcceleration();
 
 registerSchemes();
 
@@ -107,11 +111,11 @@ function vault(): VaultService {
 // ---------------------------------------------------------------- calls from the web app
 
 const handlers: { [K in Call]: (...args: Parameters<Bridge[K]>) => ReturnType<Bridge[K]> | Awaited<ReturnType<Bridge[K]>> } = {
-  info: () => ({ root: vault().root, version: app.getVersion(), appData: app.getPath('userData') }),
+  info: () => ({ root: vault().root, version: app.getVersion(), appData: app.getPath('userData'), mcpCommand: mcpCommand() }),
   list: () => vault().vault.list(),
   read: (path) => vault().vault.read(path),
-  async write(path, content, expectedMtime) {
-    const r = await vault().vault.write(path, content, { expectedMtime });
+  async write(path, content, expectedVersion) {
+    const r = await vault().vault.write(path, content, { expectedVersion });
     await vault().touched(path);
     return r;
   },
@@ -285,8 +289,8 @@ async function smokeTest(w: BrowserWindow): Promise<void> {
     for (const p of ['AGENTS.md', 'Me/Welcome.md', 'Brain/Inbox']) if (!paths.includes(p)) return 'missing ' + p;
     const note = await tw.createNote('Me', 'Smoke idea', '# Smoke idea\\n\\nzebra crossing\\n');
     const r = await tw.read(note);
-    await tw.write(note, r.content + 'more\\n', r.mtime);
-    try { await tw.write(note, 'stale', r.mtime); return 'a stale write was not refused'; } catch (e) { if (!e.message.startsWith('[conflict]')) return 'wrong error: ' + e.message; }
+    await tw.write(note, r.content + 'more\\n', r.version);
+    try { await tw.write(note, 'stale', r.version); return 'a stale write was not refused'; } catch (e) { if (!e.message.startsWith('[conflict]')) return 'wrong error: ' + e.message; }
     try { await tw.read('../outside.md'); return 'read outside the vault'; } catch (e) { if (!e.message.startsWith('[outside]')) return 'wrong error: ' + e.message; }
     const hits = await tw.search('zebra');
     if (hits[0]?.path !== note) return 'search did not find the new note';
@@ -360,7 +364,32 @@ async function uiChecks(w: BrowserWindow): Promise<void> {
 
 // ---------------------------------------------------------------- start
 
+/**
+ * How an agent starts this app as its MCP server: the AppImage itself, or Electron with this app in
+ * development. Agents often start servers without a display, and Chromium picks its display platform
+ * before any app code runs, so the headless switch has to be on the command line.
+ */
+export const MCP_ARGS = ['--mcp', '--ozone-platform=headless'];
+function mcpCommand(): string[] {
+  if (process.env.APPIMAGE) return [process.env.APPIMAGE, ...MCP_ARGS];
+  return [process.execPath, app.getAppPath(), ...MCP_ARGS];
+}
+
+/** --mcp: serve the vault the app last opened (or --vault) to one agent, then exit when it disconnects. */
+async function runMcpMode(): Promise<void> {
+  const dir = findVault(process.argv, app.getPath('userData'));
+  if (!dir || !existsSync(dir)) {
+    console.error('Thoughtwell: no vault found. Open Thoughtwell once to choose one, or pass --vault <folder>.');
+    app.exit(2);
+    return;
+  }
+  await runStdio(dir, { version: app.getVersion() });
+  app.exit(0);
+}
+
 async function main(): Promise<void> {
+  // Runs alongside the open app, so it must not take the single-instance lock.
+  if (MCP) return runMcpMode();
   if (!SMOKE && !app.requestSingleInstanceLock()) {
     app.quit();
     return;

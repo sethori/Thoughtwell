@@ -50,17 +50,20 @@ test('writes are atomic, and refuse to overwrite changes made outside the app', 
   assert.equal(path, 'Me/Idea one two.md');
   assert.equal(await v.createNote('Me', 'Idea: one/two'), 'Me/Idea one two 2.md');
 
-  const { mtime } = await v.write(path, 'first');
+  const { version } = await v.write(path, 'first');
   const r = await v.read(path);
   assert.equal(r.content, 'first');
   // An agent edits the file meanwhile.
   await writeFile(join(dir, path), 'agent edit');
   await utimes(join(dir, path), new Date(), new Date(Date.now() + 5000));
-  await assert.rejects(v.write(path, 'mine', { expectedMtime: mtime }), (e: VaultError) => e.code === 'conflict');
+  await assert.rejects(v.write(path, 'mine', { expectedVersion: version }), (e: VaultError) => e.code === 'conflict');
   assert.equal((await v.read(path)).content, 'agent edit');
   const fresh = await v.read(path);
-  await v.write(path, 'mine', { expectedMtime: fresh.mtime });
-  assert.equal((await v.read(path)).content, 'mine');
+  const next = await v.write(path, 'mine', { expectedVersion: fresh.version });
+  // Two writes in a row, faster than the filesystem clock ticks: the older version is still refused.
+  await v.write(path, 'again', { expectedVersion: next.version });
+  await assert.rejects(v.write(path, 'stale', { expectedVersion: next.version }), (e: VaultError) => e.code === 'conflict');
+  assert.equal((await v.read(path)).content, 'again');
   assert.ok(!(await v.list()).some((e) => e.name.endsWith('.tmp')), 'no temporary files left behind');
 });
 

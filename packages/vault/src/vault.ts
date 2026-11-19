@@ -16,6 +16,16 @@ export class VaultError extends Error {
   }
 }
 
+/**
+ * A file's version for conflict checks: inode, size and modified time. Linux file
+ * times tick in coarse steps (a few ms), so two quick writes can share an mtime;
+ * our atomic writes always make a new inode, and in-place writes by other tools
+ * change the size or the time.
+ */
+export function versionOf(info: { ino: number; size: number; mtimeMs: number }): string {
+  return `${info.ino}:${info.size}:${info.mtimeMs}`;
+}
+
 /** Notes bigger than this are listed but not read into the search index. */
 export const MAX_INDEXED_BYTES = 4 * 1024 * 1024;
 
@@ -94,11 +104,11 @@ export class Vault {
     return out.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
   }
 
-  async read(rel: string): Promise<{ content: string; mtime: number }> {
+  async read(rel: string): Promise<{ content: string; version: string }> {
     const abs = this.resolve(rel);
     const info = await stat(abs).catch(() => null);
     if (!info?.isFile()) throw new VaultError('not_found', `${rel} no longer exists`);
-    return { content: await readFile(abs, 'utf8'), mtime: info.mtimeMs };
+    return { content: await readFile(abs, 'utf8'), version: versionOf(info) };
   }
 
   async readBytes(rel: string): Promise<Buffer> {
@@ -107,17 +117,17 @@ export class Vault {
 
   /**
    * Writes a text file atomically (temporary file, then rename), so an agent
-   * reading at the same moment never sees half a note. With expectedMtime,
-   * refuses to overwrite a file someone else changed since it was read.
+   * reading at the same moment never sees half a note. With expectedVersion
+   * (from read), refuses to overwrite a file someone else changed since.
    */
-  async write(rel: string, content: string | Uint8Array, opts: { expectedMtime?: number | null; create?: boolean } = {}): Promise<{ mtime: number }> {
+  async write(rel: string, content: string | Uint8Array, opts: { expectedVersion?: string | null; create?: boolean } = {}): Promise<{ version: string }> {
     const abs = this.resolve(rel);
     const current = await stat(abs).catch(() => null);
     if (opts.create && current) throw new VaultError('exists', `${rel} already exists`);
-    if (opts.expectedMtime != null && current && Math.abs(current.mtimeMs - opts.expectedMtime) > 1) {
+    if (opts.expectedVersion != null && current && versionOf(current) !== opts.expectedVersion) {
       throw new VaultError('conflict', `${rel} was changed outside Thoughtwell`);
     }
-    if (opts.expectedMtime != null && !current) throw new VaultError('conflict', `${rel} was moved or deleted outside Thoughtwell`);
+    if (opts.expectedVersion != null && !current) throw new VaultError('conflict', `${rel} was moved or deleted outside Thoughtwell`);
     await mkdir(dirname(abs), { recursive: true });
     const tmp = join(dirname(abs), `.${basename(abs)}.${randomBytes(4).toString('hex')}.tmp`);
     const fh = await open(tmp, 'w', current ? current.mode & 0o777 : 0o644);
@@ -131,7 +141,7 @@ export class Vault {
       await unlink(tmp).catch(() => {});
       throw e;
     });
-    return { mtime: (await stat(abs)).mtimeMs };
+    return { version: versionOf(await stat(abs)) };
   }
 
   /** A free path like "Folder/Name.md", "Folder/Name 2.md"… */

@@ -92,6 +92,15 @@ jobs:
           xvfb-run -a ./Thoughtwell-*.AppImage --appimage-extract-and-run --no-sandbox --smoke 2>&1 | tee smoke.log
           grep -q "SMOKE OK" smoke.log
 
+      # Starts the packaged app as an MCP server the way an agent would (stdio, no display) and
+      # files an inbox item through it, checking that Me/ stays read-only. Runners have no FUSE, and
+      # --appimage-extract-and-run prints to stdout (which MCP owns), so this runs the extracted binary.
+      - name: Smoke test the MCP server
+        working-directory: apps/desktop
+        run: |
+          (cd release && ./Thoughtwell-*.AppImage --appimage-extract >/dev/null)
+          node scripts/mcp-smoke.mjs release/squashfs-root/thoughtwell --no-sandbox
+
   release:
     needs: appimage
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

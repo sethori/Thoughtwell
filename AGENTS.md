@@ -6,6 +6,7 @@ Thoughtwell is a local-first desktop second brain (Electron, Linux AppImage). A 
 ```
 apps/desktop     Electron main: VaultService, IPC handlers (main.ts), preload bridge, app:// + vault:// (protocols.ts), --smoke test
 apps/web         React + Vite + TipTap UI; reaches disk only via window.thoughtwell (lib/vault.ts)
+packages/mcp     MCP server for agents: tools over VaultService, Brain/-only writes (assertWritable); run by `--mcp` in the app
 packages/vault   Folder access (safe paths, atomic writes, import, attachments), search index, chokidar watcher; tests
 packages/shared  Markdown <-> editor JSON (markdown.ts, parse.ts), frontmatter, vault layout, bridge types, formulas, charts, theme
 scripts/version.py  Release version from git tags (next / latest / stamp) + test_version.py
@@ -19,6 +20,7 @@ pnpm typecheck
 pnpm test                         # shared + vault unit tests, version tests
 pnpm desktop:package              # AppImage in apps/desktop/release
 THOUGHTWELL_RESOURCES=<dir containing web/> electron apps/desktop --smoke   # end-to-end check, throwaway vault
+node apps/desktop/scripts/mcp-smoke.mjs <electron or AppImage> [args]       # MCP mode over stdio, throwaway vault
 ```
 Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `apps/desktop/resources/`, `coverage/`, `.env`.
 
@@ -26,7 +28,8 @@ Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `app
 - **The vault is the user's real data.** Never run the app, tests or scripts against their vault (default `~/Thoughtwell`). Tests and `--smoke` use temp folders. Deleting goes to the system trash (`shell.trashItem`), never `rm`.
 - **Markdown is the storage format, not an export.** Every editor node needs a Markdown form in `markdown.ts` and a parse in `parse.ts`, and must round-trip (add a test in `packages/shared/test/markdown.test.ts`). Unknown content becomes `rawMarkdown` and is written back verbatim. A note is only written when the user edits it.
 - **All disk access goes through `Vault`** (`resolve()` blocks `..` and symlink escapes), and the web app reaches it only via the bridge (`packages/shared/src/bridge.ts`, `CALLS`). Add a call in all three places: bridge type, `CALLS`, handler in `main.ts`.
-- Writes are atomic and carry `expectedMtime`. A `conflict` means someone (often an agent) changed the file. Don't overwrite silently.
+- **MCP agents may write only inside `Brain/` and never delete.** Keep `assertWritable` on every write path, and add no delete tool. MCP owns stdout in `--mcp` mode: log to stderr only.
+- Writes are atomic and carry `expectedVersion` (inode:size:mtime, since Linux mtimes tick in coarse steps). A `conflict` means someone (often an agent) changed the file. Don't overwrite silently.
 - Errors cross `contextBridge` as `[code] message`. Use `errorCode`/`errorText` in the web app.
 - `vault://` serves HTML/JS as text and sandboxes everything except PDFs. Keep it that way: agents save untrusted web content.
 - Don't change the vault layout or AGENTS.md template rules lightly. Existing vaults and the user's agents depend on them, and the template is only written when missing.
@@ -44,8 +47,8 @@ Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `app
 - 2026-11-19: Pivot to local-first. Server, Postgres and Docker deploy removed; Markdown vault with Me/ and Brain/ areas for AI agents.
 
 ## Known open issues
-- Still to come: optional sync/multi-user backend, an MCP server for agents, a built-in agent runner, `[[` link autocomplete, macOS/Windows builds.
-- The AppImage needs glibc 2.39+ and FUSE 2, and it can't run as root.
+- Still to come: optional sync/multi-user backend, a built-in agent runner, `[[` link autocomplete, macOS/Windows builds.
+- The AppImage needs glibc 2.39+ and FUSE 2, and it can't run as root. Without FUSE, `--appimage-extract-and-run` prints to stdout, which breaks `--mcp`: extract once and run `squashfs-root/thoughtwell --mcp` instead.
 
 ## How to work here (owner preferences)
 - **Communication:** give concise, plain answers and lead with the outcome. Explain trade-offs only when they matter. No filler. When reporting work, say what was verified and what wasn't.

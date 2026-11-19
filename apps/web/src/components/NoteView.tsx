@@ -41,7 +41,8 @@ interface Loaded {
   doc: PMNode;
   /** The file's text as last read or written, to tell our own changes from others'. */
   text: string;
-  mtime: number;
+  /** The file's version as last read or written (for conflict checks). */
+  version: string;
   /** Bumped to remount the editor with fresh content. */
   n: number;
 }
@@ -80,9 +81,9 @@ export function NoteView({
 
   const load = useCallback(async () => {
     try {
-      const { content, mtime } = await tw.read(path);
+      const { content, version } = await tw.read(path);
       const { frontmatter, body } = splitFrontmatter(content);
-      const loaded: Loaded = { frontmatter, meta: parseMeta(frontmatter), doc: markdownToDoc(body), text: content, mtime, n: (noteRef.current?.n ?? 0) + 1 };
+      const loaded: Loaded = { frontmatter, meta: parseMeta(frontmatter), doc: markdownToDoc(body), text: content, version, n: (noteRef.current?.n ?? 0) + 1 };
       setCurrentNote(path);
       noteRef.current = loaded;
       dirty.current = false;
@@ -115,9 +116,9 @@ export function NoteView({
       setState('saving');
       const run = (async () => {
         try {
-          const { mtime } = await tw.write(path, text, force ? null : cur.mtime);
+          const { version } = await tw.write(path, text, force ? null : cur.version);
           cur.text = text;
-          cur.mtime = mtime;
+          cur.version = version;
           setState(dirty.current ? 'unsaved' : 'saved');
         } catch (err) {
           dirty.current = true;
@@ -159,7 +160,7 @@ export function NoteView({
     void (async () => {
       if (saving.current) await saving.current;
       const cur = noteRef.current!;
-      let disk: { content: string; mtime: number };
+      let disk: { content: string; version: string };
       try {
         disk = await tw.read(path);
       } catch {
@@ -167,7 +168,7 @@ export function NoteView({
         return;
       }
       if (disk.content === cur.text) {
-        cur.mtime = disk.mtime; // our own write, or a touch
+        cur.version = disk.version; // our own write, or a touch
         return;
       }
       if (dirty.current) setState('conflict');

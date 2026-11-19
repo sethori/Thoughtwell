@@ -14,6 +14,8 @@
     "package": "pnpm --filter @notes/web build && node scripts/build.mjs && electron-builder --linux AppImage"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@notes/mcp": "workspace:*",
     "@notes/shared": "workspace:*",
     "@notes/vault": "workspace:*",
     "@types/node": "^22.10.0",
@@ -43,7 +45,8 @@
         "AppImage"
       ],
       "category": "Office",
-      "artifactName": "Thoughtwell-${version}-${arch}.AppImage"
+      "artifactName": "Thoughtwell-${version}-${arch}.AppImage",
+      "executableName": "thoughtwell"
     }
   }
 }

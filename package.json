@@ -13,6 +13,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test && pnpm test:version",
     "test:version": "python3 -m unittest discover -s scripts -p 'test_*.py'",
-    "desktop:package": "pnpm --filter @notes/desktop package"
+    "desktop:package": "pnpm --filter @notes/desktop package",
+    "mcp": "pnpm --filter @notes/mcp start"
   }
 }
