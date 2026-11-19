@@ -1,7 +1,7 @@
 {
   "name": "@notes/desktop",
   "productName": "Thoughtwell",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "description": "Self-contained desktop build of Thoughtwell for testing: its own database, API and web app on one machine",
   "author": "Thoughtwell",

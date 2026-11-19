@@ -137,16 +137,16 @@ server, the API and the web app, with data stored under
 `~/.config/Thoughtwell/data`. Nothing leaves the computer. It is for trying
 the app, not for shared use.
 
-**Get it built.** Push this repo to GitHub, open the **Actions** tab, choose
-**Desktop build** and **Run workflow**. When it finishes (about 10 minutes),
-download `Thoughtwell-AppImage` from the run's Artifacts and unzip it. The run
-also starts the finished AppImage, creates a database, signs in and loads the web
-app, and fails if any of that breaks.
+**Get it.** Every push to `main` publishes a GitHub release (`vX.Y.Z`) with the
+AppImage and a `SHA256SUMS` file; download it from the repo's **Releases** page.
+Builds from other branches and pull requests are attached to their **Build**
+workflow run under Artifacts. Each build also starts the finished AppImage,
+creates a database, signs in and loads the web app, and fails if any of that breaks.
 
 **Run it:**
 ```bash
-chmod +x Thoughtwell-0.1.0-x86_64.AppImage
-./Thoughtwell-0.1.0-x86_64.AppImage
+chmod +x Thoughtwell-*-x86_64.AppImage
+./Thoughtwell-*-x86_64.AppImage
 ```
 On first launch it creates the organization, the placeholder tree and an `admin`
 account, and shows the generated password once (use **Copy password**). File >
@@ -160,7 +160,7 @@ Notes:
   on Ubuntu 24.04), or run it with `--appimage-extract-and-run`.
 - The app listens on `127.0.0.1:47831` only, so other machines cannot reach it.
 - To build it yourself instead: `sudo apt install postgresql-16`, then
-  `pnpm install && pnpm desktop:package`; the file lands in `apps/desktop/release`.
+  `pnpm install && pnpm desktop:package`; the file lands in `apps/desktop/release` (named `0.0.0`, since only CI stamps a real version).
 
 ## Email and Teams notifications
 
@@ -213,5 +213,7 @@ pnpm test:e2e               # with the app running; see apps/web/playwright.conf
 - `apps/web/e2e`: Playwright drives sign-in, writing, publishing, formulas and
   theme switching, then two people editing live and a full review.
 
-CI (`.github/workflows/ci.yml`) runs typecheck, all tests and the web build on
-every push.
+CI (`.github/workflows/build.yml`) runs typecheck, all tests, the web build and
+the AppImage build and smoke test on every push and pull request. Pushes to
+`main` are also released; see `AGENTS.md` for the versioning scheme and
+`CHANGELOG.md` for changes.

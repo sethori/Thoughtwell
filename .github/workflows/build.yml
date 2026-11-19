@@ -1,0 +1,138 @@
+name: Build
+
+# Every push and PR: typecheck, tests, web build, and the desktop AppImage
+# (built and smoke-tested). Every push to main is also a release: the next
+# version is computed from the vX.Y.Z tags (scripts/version.py), stamped into
+# the build, and published as a GitHub release with the AppImage and SHA256SUMS.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# Two pushes must never claim the same version, so runs on a branch queue up.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IS_RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-retries 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      TEST_DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Strict once pnpm-lock.yaml is committed after the first install.
+      - run: pnpm install ${{ hashFiles('pnpm-lock.yaml') != '' && '--frozen-lockfile' || '' }}
+      - run: pnpm typecheck
+      - run: pnpm test   # includes the version-script tests
+      - run: pnpm --filter @notes/web exec vite build
+
+  appimage:
+    needs: test
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tags are needed to compute the version
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compute and stamp the version
+        id: version
+        run: |
+          if [ "$IS_RELEASE" = "true" ]; then
+            VERSION=$(python3 scripts/version.py next)
+            python3 scripts/version.py stamp "$VERSION"
+          else
+            VERSION=0.0.0   # not a release: keep the source placeholder
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      # The AppImage ships this PostgreSQL build, so the runner's copy is what gets bundled.
+      - name: Install PostgreSQL 16 and Electron's runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16 xvfb libnss3 libgbm1 libgtk-3-0t64 libasound2t64
+          sudo systemctl stop postgresql || true
+
+      - run: pnpm install ${{ hashFiles('pnpm-lock.yaml') != '' && '--frozen-lockfile' || '' }}
+      - run: pnpm desktop:package
+
+      - name: Checksums
+        working-directory: apps/desktop/release
+        run: sha256sum Thoughtwell-*.AppImage > SHA256SUMS && cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Thoughtwell-AppImage
+          path: |
+            apps/desktop/release/Thoughtwell-*.AppImage
+            apps/desktop/release/SHA256SUMS
+          if-no-files-found: error
+
+      # Starts the real AppImage on a virtual display, creates a database, signs in
+      # through the API and checks the web app is served. Fails the run if any of it breaks.
+      # --no-sandbox is for the CI runner only; the AppImage you download runs normally.
+      - name: Smoke test the AppImage
+        working-directory: apps/desktop/release
+        run: |
+          chmod +x Thoughtwell-*.AppImage
+          xvfb-run -a ./Thoughtwell-*.AppImage --appimage-extract-and-run --no-sandbox --smoke 2>&1 | tee smoke.log
+          grep -q "SMOKE OK" smoke.log
+
+  release:
+    needs: appimage
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.appimage.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: Thoughtwell-AppImage
+          path: dist
+
+      - name: Publish the release
+        run: |
+          if git tag --points-at HEAD | grep -qE '^v[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "This commit is already released; nothing to do."; exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "Tag v$VERSION already exists on another commit; refusing to overwrite it."; exit 1
+          fi
+          PREV=$(python3 scripts/version.py latest)
+          RANGE=${PREV:+$PREV..}HEAD
+          { echo "## Changes"; echo; git log --no-merges --format='- %s' "$RANGE"; } > notes.md
+          cat notes.md
+          gh release create "v$VERSION" dist/* \
+            --target "$GITHUB_SHA" --title "Thoughtwell $VERSION" --notes-file notes.md

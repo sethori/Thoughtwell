@@ -1,7 +1,7 @@
 {
   "name": "thoughtwell",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Shared, multi-user notes platform with hierarchical tenancy and review workflows",
   "packageManager": "pnpm@10.28.0",
   "engines": {
@@ -11,7 +11,8 @@
     "dev": "pnpm --parallel --filter @notes/api --filter @notes/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r test && pnpm test:version",
+    "test:version": "python3 -m unittest discover -s scripts -p 'test_*.py'",
     "test:e2e": "pnpm --filter @notes/web test:e2e",
     "db:migrate": "pnpm --filter @notes/api db:migrate",
     "db:seed": "pnpm --filter @notes/api db:seed",
