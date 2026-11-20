@@ -1,5 +1,6 @@
 // Bundles the Electron main process (with the vault and shared packages) and the preload script.
 import { build } from 'esbuild';
+import { copyFileSync } from 'node:fs';
 
 const common = { bundle: true, platform: 'node', target: 'node20', sourcemap: true, external: ['electron', 'fsevents'], logLevel: 'info' };
 
@@ -14,3 +15,6 @@ await build({
 
 // A sandboxed preload must be a single CommonJS file.
 await build({ ...common, entryPoints: ['src/preload.ts'], format: 'cjs', outfile: 'dist/preload.cjs' });
+
+// The window icon, loaded from next to main.mjs (dist/ is packaged into the app).
+copyFileSync('build/icons/512x512.png', 'dist/icon.png');

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Thoughtwell: looking into a well, three layers deep. Colours follow the MaterialYouDark palette. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2528"/>
+      <stop offset="1" stop-color="#0b0f10"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#tile)"/>
+  <ellipse cx="64" cy="44" rx="42" ry="15" fill="none" stroke="#9fcede" stroke-width="8"/>
+  <ellipse cx="64" cy="72" rx="28" ry="10" fill="none" stroke="#46A8D6" stroke-width="8" opacity=".85"/>
+  <ellipse cx="64" cy="96" rx="12" ry="4.5" fill="#b9fbe0"/>
+</svg>

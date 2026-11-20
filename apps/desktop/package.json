@@ -28,7 +28,8 @@
     "appId": "app.thoughtwell.desktop",
     "productName": "Thoughtwell",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -46,7 +47,8 @@
       ],
       "category": "Office",
       "artifactName": "Thoughtwell-${version}-${arch}.AppImage",
-      "executableName": "thoughtwell"
+      "executableName": "thoughtwell",
+      "icon": "build/icons"
     }
   }
 }

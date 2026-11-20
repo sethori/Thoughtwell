@@ -4,7 +4,7 @@
 Thoughtwell is a local-first desktop second brain (Electron, Linux AppImage). A vault is a plain folder of Markdown files: `Me/` holds the owner's notes, and `Brain/` is where their AI agents ingest material (`Inbox/` → `Sources/`, `Summaries/`, `Topics/`, `Log.md`). The vault's own `AGENTS.md` (template in `packages/vault/src/templates.ts`) tells those agents the rules. There is no server: sync and multi-user support are a later, optional backend. README.md has the features and the note format.
 
 ```
-apps/desktop     Electron main: VaultService, IPC handlers (main.ts), preload bridge, app:// + vault:// (protocols.ts), --smoke test
+apps/desktop     Electron main: VaultService, IPC handlers (main.ts), preload bridge, app:// + vault:// (protocols.ts), --smoke test; build/icon.svg (PNGs: scripts/icons.sh)
 apps/web         React + Vite + TipTap UI; reaches disk only via window.thoughtwell (lib/vault.ts)
 packages/mcp     MCP server for agents: tools over VaultService, Brain/-only writes (assertWritable); run by `--mcp` in the app
 packages/vault   Folder access (safe paths, atomic writes, import, attachments), search index, chokidar watcher; tests

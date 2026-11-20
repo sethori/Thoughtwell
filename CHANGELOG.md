@@ -30,6 +30,7 @@ included those changes.
   tools to search the vault, see what you have been writing about, file inbox items and
   write summaries that link topics and log themselves. They can write only in Brain/, and
   cannot delete anything. The Brain home screen shows the command to add it to Claude Code.
+- Thoughtwell has an app icon: looking down into a well, in teal and mint.
 
 ### Removed
 - The multi-user server: sign-in, org tree, roles, review and approval, live co-editing,

@@ -211,6 +211,7 @@ function createWindow(show: boolean): BrowserWindow {
     show,
     backgroundColor: '#0f1115',
     title: 'Thoughtwell',
+    icon: join(here, 'icon.png'),
     webPreferences: {
       preload: join(here, 'preload.cjs'),
       contextIsolation: true,
