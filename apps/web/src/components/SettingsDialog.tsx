@@ -1,15 +1,18 @@
 import { ACCENT_PRESETS, DENSITIES, THEME_MODES, type AccentPreset, type Preferences } from '@notes/shared';
-import { tw, type VaultInfo } from '../lib/vault';
+import { tw, type UpdateStatus, type VaultInfo } from '../lib/vault';
 import { Dialog } from './Dialog';
+import { UpdatesSection } from './UpdatesSection';
 
 export function SettingsDialog({
   prefs,
   info,
+  update,
   onChange,
   onClose,
 }: {
   prefs: Preferences;
   info: VaultInfo;
+  update: UpdateStatus | null;
   onChange: (p: Preferences) => void;
   onClose: () => void;
 }) {
@@ -46,6 +49,7 @@ export function SettingsDialog({
           </button>
         </div>
       </div>
+      {update && <UpdatesSection status={update} />}
       <p className="hint">
         Thoughtwell {info.version}. Everything stays on this computer: your notes are the Markdown files in the vault folder. App settings live in {info.appData}.
       </p>

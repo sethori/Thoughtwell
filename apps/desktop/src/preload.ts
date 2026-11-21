@@ -1,7 +1,7 @@
 // Runs in the window before the web app, with access to Electron's IPC only.
 // It exposes exactly the calls in bridge.ts, nothing else of Node or Electron.
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { CALLS, errorMessage, type Bridge, type Reply } from './bridge';
+import { CALLS, errorMessage, type Bridge, type Reply, type UpdateStatus } from './bridge';
 
 const api: Record<string, unknown> = {};
 for (const name of CALLS) {
@@ -14,8 +14,13 @@ for (const name of CALLS) {
 }
 
 const bridge: Bridge = {
-  ...(api as unknown as Omit<Bridge, 'pathForFile' | 'onChange' | 'onCommand'>),
+  ...(api as unknown as Omit<Bridge, 'pathForFile' | 'onChange' | 'onCommand' | 'onUpdate'>),
   pathForFile: (file) => webUtils.getPathForFile(file),
+  onUpdate(fn) {
+    const listener = (_e: unknown, status: UpdateStatus) => fn(status);
+    ipcRenderer.on('tw:update', listener);
+    return () => ipcRenderer.removeListener('tw:update', listener);
+  },
   onChange(fn) {
     const listener = (_e: unknown, paths: string[]) => fn(paths);
     ipcRenderer.on('tw:changed', listener);

@@ -1436,3 +1436,45 @@ code.path {
 .banner .push {
   flex: 1;
 }
+.update-line {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.update-line.bad {
+  color: var(--bad);
+}
+.update-progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.check input {
+  accent-color: var(--accent);
+}
+.update-notice {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 65;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+}
+.update-notice span {
+  flex: 1 1 100%;
+}

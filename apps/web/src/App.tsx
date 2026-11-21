@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { areaOf, BRAIN_DIRS, dirname, ME, type Area, type Entry, type Preferences } from '@notes/shared';
-import { hasBridge, tw, type VaultInfo } from './lib/vault';
+import { hasBridge, tw, type UpdateStatus, type VaultInfo } from './lib/vault';
 import { applyTheme, keep, loadPreferences, remember, savePreferences } from './lib/theme';
 import { Rail } from './components/Rail';
 import { Sidebar } from './components/Sidebar';
@@ -21,6 +21,9 @@ export function App() {
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null);
   const [dialog, setDialog] = useState<'search' | 'settings' | 'new-note' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
+  // The "restart to update" notice was closed for this version.
+  const [laterFor, setLaterFor] = useState<string | null>(null);
 
   useEffect(() => applyTheme(prefs), [prefs]);
 
@@ -29,14 +32,20 @@ export function App() {
   useEffect(() => {
     if (!hasBridge) return;
     void tw.info().then(setInfo);
+    void tw.updateStatus().then(setUpdate);
+    const offUpdate = tw.onUpdate(setUpdate);
     void refresh();
     // Anything that changes the folder (you, an agent, a sync tool) refreshes the tree.
     let t: number | undefined;
-    return tw.onChange((paths) => {
+    const offChange = tw.onChange((paths) => {
       setChanged((c) => ({ paths, n: c.n + 1 }));
       window.clearTimeout(t);
       t = window.setTimeout(() => void refresh(), 100);
     });
+    return () => {
+      offUpdate();
+      offChange();
+    };
   }, [refresh]);
 
   const notify = useCallback((msg: string) => setToast(msg), []);
@@ -77,6 +86,10 @@ export function App() {
     return tw.onCommand((cmd) => {
       if (cmd === 'search') setDialog('search');
       else if (cmd === 'new-note') setDialog('new-note');
+      else if (cmd === 'check-updates') {
+        setDialog('settings');
+        void tw.checkForUpdates();
+      }
       else if (cmd === 'import') void tw.pickAndImport(BRAIN_DIRS.inbox).then((a) => a.length && notify(`Added ${a.length} to the inbox`));
     });
   }, [notify]);
@@ -181,6 +194,7 @@ export function App() {
         <SettingsDialog
           prefs={prefs}
           info={info}
+          update={update}
           onChange={(p) => {
             setPrefs(p);
             savePreferences(p);
@@ -197,6 +211,17 @@ export function App() {
           onClose={() => setDialog(null)}
           onSubmit={async (title) => open(await tw.createNote(area === 'brain' ? BRAIN_DIRS.topics : ME, title, `# ${title}\n\n`))}
         />
+      )}
+      {update?.state === 'ready' && laterFor !== update.latest && dialog !== 'settings' && (
+        <div className="update-notice" role="status">
+          <span>Thoughtwell {update.latest} is installed and starts next time you open it.</span>
+          <button type="button" className="btn pri" onClick={() => void tw.restartToUpdate()}>
+            Restart now
+          </button>
+          <button type="button" className="btn" onClick={() => setLaterFor(update.latest ?? null)}>
+            Later
+          </button>
+        </div>
       )}
       {toast && (
         <div className="toast" role="status">

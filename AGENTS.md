@@ -34,6 +34,7 @@ Generated, never commit: `node_modules/`, `dist/`, `apps/desktop/release/`, `app
 - `vault://` serves HTML/JS as text and sandboxes everything except PDFs. Keep it that way: agents save untrusted web content.
 - Don't change the vault layout or AGENTS.md template rules lightly. Existing vaults and the user's agents depend on them, and the template is only written when missing.
 - `pnpm-lock.yaml` is committed; CI installs with `--frozen-lockfile`. Commit lockfile changes with the dependency change.
+- Self-update (`apps/desktop/src/updates.ts`) reads the latest GitHub release of `sethori/Thoughtwell` and needs its `Thoughtwell-<ver>-<arch>.AppImage` and `SHA256SUMS` assets. Keep those names in CI, and keep the swap in place (same path, rename in the same folder). The check on open runs only in release builds (not 0.0.0, `--smoke` or `--mcp`).
 - Say clearly what was and wasn't tested for real (unit tests vs. the smoke test vs. a person using the app vs. CI).
 
 ## Versioning and releases

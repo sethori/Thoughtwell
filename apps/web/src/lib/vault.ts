@@ -1,7 +1,7 @@
 import { parseError, type Bridge } from '@notes/shared/bridge';
 import { dirname, resolveRelative } from '@notes/shared';
 
-export type { Entry, SearchHit, VaultInfo } from '@notes/shared/bridge';
+export type { Entry, SearchHit, UpdateStatus, VaultInfo } from '@notes/shared/bridge';
 
 declare global {
   interface Window {

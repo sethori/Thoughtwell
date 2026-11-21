@@ -148,3 +148,16 @@ Run the MCP server from source with `pnpm --filter @notes/mcp start --vault <fol
 Every push to `main` builds, tests and smoke-tests the AppImage. It is then
 published as GitHub release `vX.Y.Z`. Versions come from git tags; see
 `scripts/version.py`. The AppImage needs glibc 2.39+ and FUSE 2.
+
+The AppImage updates itself. When it opens (and from **Settings → Updates** or
+**File → Check for updates…**), it looks at the latest GitHub release. If there is a
+newer one, it downloads that release's AppImage, checks it against `SHA256SUMS`, and
+replaces the AppImage file in place, keeping its path so shortcuts and MCP configs still
+work. The new version runs the next time you open Thoughtwell, or right away if you
+choose **Restart now**. Turn off the check on open in the same place.
+
+## License
+
+Thoughtwell is free software under the [GNU General Public License v3.0 or later](LICENSE).
+You may use, share and change it for any purpose. If you distribute it or a modified
+version, you must do so under the same license, with its source code.

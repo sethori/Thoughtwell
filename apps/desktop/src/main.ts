@@ -8,6 +8,7 @@ import { VaultError, VaultService } from '@notes/vault';
 import { findVault, runStdio } from '@notes/mcp';
 import { CALLS, type Bridge, type Call, type Reply } from './bridge';
 import { handleApp, handleVault, registerSchemes } from './protocols';
+import { Updater } from './updates';
 
 // --smoke: start on a throwaway vault, check the app end to end, print SMOKE OK and exit.
 const SMOKE = process.argv.includes('--smoke');
@@ -28,6 +29,8 @@ const settingsFile = () => join(app.getPath('userData'), 'settings.json');
 
 interface Settings {
   vaultPath?: string;
+  /** Check for updates when the app opens (default on). */
+  autoUpdate?: boolean;
 }
 
 function loadSettings(): Settings {
@@ -42,6 +45,14 @@ function saveSettings(s: Settings): void {
   mkdirSync(dirname(settingsFile()), { recursive: true });
   writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
 }
+
+const updater = new Updater({
+  version: app.getVersion(),
+  appImage: process.env.APPIMAGE,
+  arch: process.arch,
+  auto: () => loadSettings().autoUpdate !== false,
+  onStatus: (s) => win?.webContents.send('tw:update', s),
+});
 
 let service: VaultService | null = null;
 let win: BrowserWindow | null = null;
@@ -112,6 +123,19 @@ function vault(): VaultService {
 
 const handlers: { [K in Call]: (...args: Parameters<Bridge[K]>) => ReturnType<Bridge[K]> | Awaited<ReturnType<Bridge[K]>> } = {
   info: () => ({ root: vault().root, version: app.getVersion(), appData: app.getPath('userData'), mcpCommand: mcpCommand() }),
+  updateStatus: () => updater.status(),
+  checkForUpdates: () => updater.check(),
+  setUpdateOptions({ auto }) {
+    if (auto !== undefined) saveSettings({ ...loadSettings(), autoUpdate: auto });
+    updater.changed();
+    return updater.status();
+  },
+  async restartToUpdate() {
+    if (updater.status().state !== 'ready' || !process.env.APPIMAGE) throw new VaultError('invalid', 'No update is waiting');
+    // The new AppImage is already at $APPIMAGE; start it with the same arguments and quit this one.
+    app.relaunch({ execPath: process.env.APPIMAGE, args: process.argv.slice(1) });
+    app.quit();
+  },
   list: () => vault().vault.list(),
   read: (path) => vault().vault.read(path),
   async write(path, content, expectedVersion) {
@@ -260,6 +284,8 @@ function buildMenu(): void {
         { label: 'Open another vault folder…', click: () => void handlers.chooseVault() },
         { label: 'Show vault in file manager', click: () => service && void shell.openPath(service.root) },
         { label: 'Copy vault path (for your AI agents)', click: () => service && clipboard.writeText(service.root) },
+        { type: 'separator' },
+        { label: 'Check for updates…', click: send('check-updates') },
         { type: 'separator' },
         { role: 'quit' },
       ],
@@ -445,6 +471,12 @@ async function main(): Promise<void> {
       console.error(`SMOKE FAILED: ${(err as Error).message}`);
       app.exit(1);
     }
+    return;
+  }
+
+  // Look for a newer release once the window is up. Builds that aren't releases (0.0.0) only check when asked.
+  if (process.env.APPIMAGE && app.getVersion() !== '0.0.0' && loadSettings().autoUpdate !== false) {
+    setTimeout(() => void updater.check(), 5000);
   }
 }
 

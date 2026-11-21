@@ -35,8 +35,35 @@ export interface VaultInfo {
   mcpCommand: string[];
 }
 
+export interface UpdateStatus {
+  /**
+   * idle: not checked yet. current: this is the latest release. available: a newer release exists
+   * but can't be installed here (see message). ready: the newer AppImage is in place; it runs on
+   * the next start. unsupported: this copy isn't an AppImage (development), so it can't update itself.
+   */
+  state: 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'error' | 'unsupported';
+  current: string;
+  latest?: string;
+  /** 0 to 1 while downloading. */
+  progress?: number;
+  notes?: string;
+  releaseUrl?: string;
+  message?: string;
+  /** When the last check finished, in milliseconds. */
+  checkedAt?: number;
+  /** Check (and download) when the app opens. */
+  auto: boolean;
+}
+
 export interface Bridge {
   info(): Promise<VaultInfo>;
+  updateStatus(): Promise<UpdateStatus>;
+  /** Looks for a newer release and, if there is one, downloads and installs it for the next start. */
+  checkForUpdates(): Promise<UpdateStatus>;
+  setUpdateOptions(options: { auto?: boolean }): Promise<UpdateStatus>;
+  /** Restarts into the installed update. */
+  restartToUpdate(): Promise<void>;
+  onUpdate(fn: (status: UpdateStatus) => void): () => void;
   list(): Promise<Entry[]>;
   /** version identifies this state of the file; pass it back to write. */
   read(path: string): Promise<{ content: string; version: string }>;
@@ -75,6 +102,10 @@ export type Reply<T> = { ok: true; value: T } | { ok: false; code: string; messa
 
 export const CALLS = [
   'info',
+  'updateStatus',
+  'checkForUpdates',
+  'setUpdateOptions',
+  'restartToUpdate',
   'list',
   'read',
   'write',

@@ -31,6 +31,11 @@ included those changes.
   write summaries that link topics and log themselves. They can write only in Brain/, and
   cannot delete anything. The Brain home screen shows the command to add it to Claude Code.
 - Thoughtwell has an app icon: looking down into a well, in teal and mint.
+- The AppImage updates itself: it checks for a new release when it opens, downloads and
+  verifies it in the background, and runs it the next time you open Thoughtwell (or offers
+  to restart now). Settings has an Updates section to check by hand or turn off the check
+  on open.
+- Thoughtwell is free software under the GNU GPL v3.0 or later (see LICENSE).
 
 ### Removed
 - The multi-user server: sign-in, org tree, roles, review and approval, live co-editing,
