@@ -2,6 +2,7 @@
   "name": "@notes/desktop",
   "productName": "Thoughtwell",
   "version": "0.0.0",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "description": "Thoughtwell desktop app: a local-first second brain stored as Markdown files",
   "author": "Thoughtwell",

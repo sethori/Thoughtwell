@@ -2,6 +2,7 @@
   "name": "thoughtwell",
   "private": true,
   "version": "0.0.0",
+  "license": "GPL-3.0-or-later",
   "description": "Local-first second brain: your notes and your AI agents' notes, as Markdown files on your computer",
   "packageManager": "pnpm@10.28.0",
   "engines": {
